@@ -7,13 +7,11 @@ import (
 	"github.com/oooska/irc"
 )
 
-var clientListenerMap map[*IRCClient]chan bool = make(map[*IRCClient]chan bool)
-
 /*IRCClient defines the behavior of a browser-based client.
 DONE: Websocket client  (websocket.go)
 TODO: Longpoll client
 */
-type IRCClient interface {
+type ircClient interface {
 	SendMessage(irc.Message) error
 	ReceiveMessage() (irc.Message, error)
 	Close()
@@ -25,7 +23,7 @@ func ircManager(ircConn irc.IRCConn) {
 	fmt.Println("*** Entering ircManager ***")
 	defer fmt.Println("*** Leaving ircManager ***")
 
-	var clients []*IRCClient
+	var clients []*ircClient
 
 	fromServer := make(chan irc.Message)
 	fromClient := make(chan irc.Message)
@@ -54,7 +52,7 @@ func ircManager(ircConn irc.IRCConn) {
 				err := client.SendMessage(msg)
 
 				if err != nil {
-					stopClientListener(client)
+					stopClientListener(&client)
 					client.Close()
 					clients = deleteNthItem(clients, k)
 					k-- //Account for socket deletion in slice
@@ -71,7 +69,7 @@ func ircManager(ircConn irc.IRCConn) {
 		//A new client has connected
 		case client := <-newClients:
 			clients = append(clients, client)
-			startClientListener(*client, fromClient)
+			startClientListener(client, fromClient)
 			fmt.Println("*** Accepted the ", len(clients), " client connection ***")
 		}
 	}
@@ -79,7 +77,7 @@ func ircManager(ircConn irc.IRCConn) {
 	quitChan <- true
 }
 
-func deleteNthItem(a []*IRCClient, n int) []*IRCClient {
+func deleteNthItem(a []*ircClient, n int) []*ircClient {
 	a, a[len(a)-1] = append(a[:n], a[n+1:]...), nil
 	return a
 }
@@ -106,21 +104,9 @@ func ircServerListener(ircConn irc.IRCConn, msgChan chan<- irc.Message, errChan 
 	}
 }
 
-func startClientListener(client IRCClient, to_server chan<- irc.Message) {
-	quitCh := make(chan bool, 1)
-	clientListenerMap[&client] = quitCh
-	go ircClientListener(client, to_server, quitCh)
-}
-
-func stopClientListener(client IRCClient) {
-	//fmt.Println(fmt.Sprintf("Telling client %+v listener  to quit...", client))
-	ch, ok := clientListenerMap[&client]
-	if ok {
-		ch <- true
-		//fmt.Println("... Successfully sent quit notice")
-	}
-}
-func ircClientListener(client IRCClient, to_server chan<- irc.Message, quit <-chan bool) {
+//ircCLientListener will indefinitely listen for input from an ircClient, putting
+//it into the supplied channel, where it will be sent on to the server
+func ircClientListener(client ircClient, to_server chan<- irc.Message, quit <-chan bool) {
 	for {
 		select {
 		case <-quit:
@@ -137,5 +123,26 @@ func ircClientListener(client IRCClient, to_server chan<- irc.Message, quit <-ch
 				to_server <- msg
 			}
 		}
+	}
+}
+
+//startClientListener and stopClientListener start and stop the ircClientListener
+//for the particular ircClient
+//Keep track of the quit bool channel for each client listener
+//TODO Find a better way to implement this
+var clientListenerMap map[*ircClient]chan bool = make(map[*ircClient]chan bool)
+
+func startClientListener(client *ircClient, to_server chan<- irc.Message) {
+	quitCh := make(chan bool, 1)
+	clientListenerMap[client] = quitCh
+	go ircClientListener(*client, to_server, quitCh)
+}
+
+func stopClientListener(client *ircClient) {
+	//fmt.Println(fmt.Sprintf("Telling client %+v listener  to quit...", client))
+	ch, ok := clientListenerMap[client]
+	if ok {
+		ch <- true
+		//fmt.Println("... Successfully sent quit notice")
 	}
 }

@@ -17,7 +17,7 @@ TODO: Currently only sends data to clients. Need to listen to IRCCLients and pas
 */
 
 //Socket to listen to new websockets on; should be abstracted away
-var newClients chan *IRCClient = make(chan *IRCClient)
+var newClients chan *ircClient = make(chan *ircClient)
 
 //Register mounts an entry point at /chat/ on the supplied http mux.
 //TODO: We currently start the connection to the IRC server here. This

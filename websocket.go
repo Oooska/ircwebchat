@@ -2,6 +2,7 @@ package ircwebchat
 
 import (
 	"bufio"
+
 	"fmt"
 	"time"
 
@@ -11,30 +12,31 @@ import (
 
 /*The WSClient struct is an imeplementation of IRCClient using websockets.
  */
-type WSClient struct {
+type wsClient struct {
 	conn   *websocket.Conn
 	reader bufio.Reader
 }
 
 //Sends a message to the client/user.
-func (wsclient WSClient) SendMessage(msg irc.Message) error {
+func (wsclient wsClient) SendMessage(msg irc.Message) error {
 	_, err := wsclient.conn.Write([]byte(msg.String()))
 	return err
 }
 
 //Receives a message from the client/user
-func (wsclient WSClient) ReceiveMessage() (irc.Message, error) {
+//TODO: Remove terrible parsing rules in parseLine()
+func (wsclient wsClient) ReceiveMessage() (irc.Message, error) {
 	msg, err := wsclient.reader.ReadString('\n')
 	return irc.NewMessage(msg), err
 }
 
-func (wsclient WSClient) Close() {
+func (wsclient wsClient) Close() {
 	wsclient.conn.Close()
 }
 
 //Returns a new WebSocket connection
-func NewWSClient(conn *websocket.Conn) WSClient {
-	return WSClient{conn: conn, reader: *bufio.NewReader(conn)}
+func newWSClient(conn *websocket.Conn) wsClient {
+	return wsClient{conn: conn, reader: *bufio.NewReader(conn)}
 }
 
 /*
@@ -46,11 +48,11 @@ waits until the socket is closed before exiting the function.
 func webSocketHandler(ws *websocket.Conn) {
 	//Notify the irc manager of a new websocket
 	fmt.Println("!!!!socketHandler starting!!!!")
-	var client IRCClient = NewWSClient(ws)
+	var client ircClient = newWSClient(ws)
 	newClients <- &client
 	for {
 		if ws.IsServerConn() {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		} else {
 			fmt.Println("!!!!socketHandler returning after IsServerConn returned false")
 			return
