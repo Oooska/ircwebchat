@@ -19,7 +19,7 @@ type ircClient interface {
 
 //ircManager takes the connection to the IRC server and then coordinates the
 //communication between the irc server, and the active IRCClients
-func ircManager(ircConn irc.IRCConn) {
+func ircManager(ircConn irc.IRCConn, newClients chan *ircClient) {
 	fmt.Println("*** Entering ircManager ***")
 	defer fmt.Println("*** Leaving ircManager ***")
 

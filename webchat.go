@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/oooska/irc"
+	//"github.com/oooska/irc"
 	"golang.org/x/net/websocket"
 )
 
@@ -16,9 +16,6 @@ Still in early development stages.
 TODO: Currently only sends data to clients. Need to listen to IRCCLients and pass info on to other clients and server
 */
 
-//Socket to listen to new websockets on; should be abstracted away
-var newClients chan *ircClient = make(chan *ircClient)
-
 //Register mounts an entry point at /chat/ on the supplied http mux.
 //TODO: We currently start the connection to the IRC server here. This
 // should be abstracted away.
@@ -26,22 +23,44 @@ func Register(mux http.ServeMux) {
 	mux.HandleFunc("/chat/", rootHandler)
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
-	//Start the IRC connection... //TODO: Move this elsewhere.
-	addr := "irc.freenode.net:6667"
-	username := "toodles"
-	nick := "oooska_test"
-	servername := "server_name"
-	realname := "test_client"
-
-	conn, err := irc.NewIRCConnection(addr, false)
-	if err != nil {
-		panic(err)
+	user := iwcUser{
+		username: "goirctest",
+		password: "password",
+		profile: serverProfile{
+			address: "irc.freenode.net:6667",
+			nick: login{
+				name:     "goirctest",
+				password: "",
+			},
+			realname: "go-get-real",
+			altnick: login{
+				name:     "goirctest_",
+				password: "",
+			},
+		},
+	}
+	user2 := iwcUser{
+		username: "goirctest2",
+		password: "password",
+		profile: serverProfile{
+			address: "irc.freenode.net:6667",
+			nick: login{
+				name:     "goirctest2",
+				password: "",
+			},
+			altnick: login{
+				name:     "goirctest2_",
+				password: "",
+			},
+			realname: "go-get-real",
+		},
 	}
 
-	conn.Write(irc.UserMessage(username, addr, servername, realname))
-	conn.Write(irc.NickMessage(nick))
-	conn.Write(irc.NewMessage("join #go_test"))
-	go ircManager(conn)
+	addUser(user)
+	addUser(user2)
+
+	startUserSessions()
+
 }
 
 /*  Rest of the code below is borrowed/modified from:

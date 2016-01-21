@@ -3,7 +3,8 @@ package ircwebchat
 import (
 	"bufio"
 
-	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/oooska/irc"
@@ -47,14 +48,49 @@ waits until the socket is closed before exiting the function.
 */
 func webSocketHandler(ws *websocket.Conn) {
 	//Notify the irc manager of a new websocket
-	fmt.Println("!!!!socketHandler starting!!!!")
+	log.Println("socketHandler starting")
+	defer log.Println("socketHandler exiting")
 	var client ircClient = newWSClient(ws)
-	newClients <- &client
+
+	//Authenticate websocket:
+	var user *iwcUser = nil
+
+	for user == nil {
+		client.SendMessage(irc.NewMessage("Enter a username."))
+		msg, err := client.ReceiveMessage()
+		if err != nil {
+			return
+		}
+		username := strings.TrimSpace(msg.String())
+
+		client.SendMessage(irc.NewMessage("Enter a password."))
+		msg, err = client.ReceiveMessage()
+		if err != nil {
+			return
+		}
+		password := strings.TrimSpace(msg.String())
+		user = authenticate(username, password)
+
+		if user != nil {
+			client.SendMessage("Successfully logged in.")
+		} else {
+			client.SendMessage(irc.NewMessage("Invalid username/password."))
+		}
+	}
+
+	newclients := getSessionNotifier(user.username)
+	if newclients == nil {
+		client.SendMessage("Unable to find session. Closing...")
+		log.Printf("Unable to find session for ", user.username)
+		return
+	}
+	newclients <- &client
+
 	for {
 		if ws.IsServerConn() {
 			time.Sleep(100 * time.Millisecond)
 		} else {
-			fmt.Println("!!!!socketHandler returning after IsServerConn returned false")
+			log.Println("!!!!socketHandler returning after IsServerConn returned false")
 			return
 		}
 	}
