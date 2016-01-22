@@ -56,11 +56,11 @@ func ircManager(ircConn irc.IRCConn, newClients chan *ircClient) {
 					client.Close()
 					clients = deleteNthItem(clients, k)
 					k-- //Account for socket deletion in slice
+					fmt.Println("*** Disconnected irc Client. ", len(clients), "remaining.")
 				}
 			}
 		//Received a message from the server
 		case msg := <-fromClient:
-			fmt.Println("Receiving message from ircclient: ", msg)
 			err := ircConn.Write(msg)
 			if err != nil {
 				fmt.Println("Error writing to server: ", err)
@@ -119,7 +119,6 @@ func ircClientListener(client ircClient, to_server chan<- irc.Message, quit <-ch
 				//time.Sleep(1000 * time.Millisecond)
 				return
 			} else {
-				fmt.Println("ircClientListener received message: ", msg)
 				to_server <- msg
 			}
 		}

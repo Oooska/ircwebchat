@@ -1,0 +1,24 @@
+Recommended build instructions:
+
+To build changes: 
+browserify -t [ babelify --presets [ react ] ] index.js -o ../server/static/index.js
+
+If watch for changes and automagically build:
+watchify  -t [ babelify --presets [ react ] ] index.js -o ../server/static/index.js
+
+
+
+Installation instructions:
+
+Requirements:
+Node.js
+
+browserify: -Bundles all JS files into one (See browserify.org)
+  To install globally: npm install -g browserify
+watchify: -Watches for file changes and automatically rebuilds changed files. Recommended, but not required.
+  To install globally: npm -g watchify
+
+Dependencies in package.json:
+  To install: npm install
+
+

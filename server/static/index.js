@@ -1,0 +1,1 @@
+console.error("SyntaxError: C:/code/go/src/github.com/oooska/ircwebchat/frontend/index.js: Unexpected token (11:3) while parsing file: C:\\code\\go\\src\\github.com\\oooska\\ircwebchat\\frontend\\index.js");

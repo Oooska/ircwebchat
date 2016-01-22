@@ -4,7 +4,6 @@ import (
 	"html/template"
 	"net/http"
 
-	//"github.com/oooska/irc"
 	"golang.org/x/net/websocket"
 )
 
