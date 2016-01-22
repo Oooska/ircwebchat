@@ -7,11 +7,11 @@
 
 var IRCWebChat = React.createClass({
 	render: function(){
-		return {
-			<div className="">
-
+		return (
+			<div>
+				Hello World. Start of IRCWebChat Client...
 			</div>
-		}
+		)
 	}
 })
 
@@ -21,9 +21,7 @@ var IRCWebChat = React.createClass({
 
 
 ReactDOM.render(
-  <div>
-  	
-  </div>,
+  <IRCWebChat />,
   document.getElementById('ircwebchat')
 );
 
