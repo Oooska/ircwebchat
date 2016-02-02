@@ -1,0 +1,26 @@
+body {
+	background-color: lightgray;
+}
+
+ul.tabs  {
+	display: inline;
+}
+
+ul.tabs > li {
+	display: inline-block;
+	padding: 10px 20px;
+}
+
+div.messagelist {
+	background-color: white;
+}
+
+div.messagelist > span {
+	display: block;
+}
+
+div
+.nicklist {
+	background-color: white;
+	text-align: right;
+}

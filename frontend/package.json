@@ -6,6 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "scripts": {
+    "build": "browserify -x react -x react-dom -t [ babelify --presets [ react ] ] index.js -o ../server/static/index.js",
+    "watch": "watchify -x react -x react-dom -t [ babelify --presets [ react ] ] index.js -o ../server/static/index.js"
+  },
   "repository": {
     "type": "git",
     "url": "github.com/oooska/ircwebchat-frontend"
@@ -13,9 +17,24 @@
   "author": "Oooska",
   "license": "MIT",
   "dependencies": {
+    "react": "^0.14.6",
+    "react-dom": "^0.14.6",
+    "tabs.react": "git+https://github.com/Oooska/tabs.react.git#master"
+  },
+  "devDependencies": {
     "babel-preset-react": "^6.3.13",
     "babelify": "^7.2.0",
-    "react": "^0.14.6",
-    "react-dom": "^0.14.6"
+    "browserify": "^13.0.0",
+    "browserify-shim": "^3.8.12"
+  },
+  "browserify": {
+    "transform": [
+      "browserify-shim",
+      "babelify"
+    ]
+  },
+  "browserify-shim": {
+    "react": "global:React",
+    "react-dom": "global:ReactDOM"
   }
 }
