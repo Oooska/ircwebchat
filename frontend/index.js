@@ -72,7 +72,7 @@ var TabbedRooms = React.createClass({
 
 	render: function(){
 		return (
-			<Tabs active={this.props.activeTab} useState={true} propName={'name'} onChange={this.props.onChange}>
+			<Tabs active={this.props.activeTab} propName={'name'} onChange={this.props.onChange}>
 				{this.props.rooms.map(function(room){
 					return <Room name={room.name} users={room.users} messages={room.messages} key={room.name} />
 				})}
@@ -140,7 +140,7 @@ var Input = React.createClass({
 	}, 
 	render: function(){
 		return (
-			<div className="row">
+			<div className="ircinput row">
 				<input type="text" value={this.props.value} className="col-xs-11" 
 				       onKeyDown={this.checkForSend} onChange={this.props.onChange}  />
 				<button className="col-xs-1" onClick={this.props.onSend}>Send</button>

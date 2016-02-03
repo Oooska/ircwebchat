@@ -18,14 +18,20 @@ ul.tabs > li {
 div.messagelist {
 	background-color: white;
 	overflow-y: scroll;
+	min-height: 500px;
 }
 
 div.messagelist > span {
 	display: block;
 }
 
-div
-.nicklist {
+div.nicklist {
 	background-color: white;
 	text-align: right;
+}
+
+div.ircinput {
+	position: absolute;
+	bottom: 0;
+	width: 100%;
 }
