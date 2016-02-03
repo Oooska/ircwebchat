@@ -1,3 +1,7 @@
+html, body {
+	height: 100%;
+}
+
 body {
 	background-color: lightgray;
 }
@@ -13,6 +17,7 @@ ul.tabs > li {
 
 div.messagelist {
 	background-color: white;
+	overflow-y: scroll;
 }
 
 div.messagelist > span {

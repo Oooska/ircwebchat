@@ -20,7 +20,7 @@ var IRCWebChat = React.createClass({
 
 	componentWillMount: function () {
 		IRCStore.addChangeListener(this.addMessage);
-		IRCStore.init(window.location.host + "/chat/socket");
+		IRCStore.start(window.location.host + "/chat/socket");
 	},
 
 	addMessage: function (newRooms) {
@@ -33,14 +33,23 @@ var IRCWebChat = React.createClass({
 
 	sendMessage: function (event) {
 		event.preventDefault();
-		if (event.CharCode == 13) console.log("!!!ENTER PRESSED!!!");
-		console.log("Received sendMessage event: ", event);
-		IRCStore.sendMessage(this.state.input.value + "\r\n");
+
+		var val = this.state.input.value;
+		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.activeTab != "") val = "PRIVMSG " + this.state.activeTab + " :" + val;
+
+		console.log("Sending message. Input: ", this.state.input.value, " Parsed to :", val);
+
+		IRCStore.sendMessage(val);
 		this.setState({ input: { value: '' } });
 	},
 
+	_tabChanged: function (newValue) {
+		console.log("new tab: ", newValue);
+		this.setState({ activeTab: newValue.active });
+	},
+
 	render: function () {
-		return React.createElement('div', { className: 'container-fluid' }, React.createElement(TabbedRooms, { rooms: this.state.rooms }), React.createElement(Input, { value: this.state.input.value, onChange: this.inputChange, onSend: this.sendMessage }));
+		return React.createElement('div', { className: 'container-fluid' }, React.createElement(TabbedRooms, { rooms: this.state.rooms, activeTab: this.state.activeTab, onChange: this._tabChanged }), React.createElement(Input, { value: this.state.input.value, onChange: this.inputChange, onSend: this.sendMessage }));
 	}
 });
 
@@ -52,11 +61,14 @@ var TabbedRooms = React.createClass({
 			name: React.PropTypes.string.isRequired,
 			users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
 			messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
-		}))
+		})),
+
+		activeTab: React.PropTypes.string.isRequired,
+		onChange: React.PropTypes.func.isRequired
 	},
 
 	render: function () {
-		return React.createElement(Tabs, { useState: true, propName: 'name', childClassNames: 'row col-xs-12' }, this.props.rooms.map(function (room) {
+		return React.createElement(Tabs, { active: this.props.activeTab, useState: true, propName: 'name', onChange: this.props.onChange }, this.props.rooms.map(function (room) {
 			return React.createElement(Room, { name: room.name, users: room.users, messages: room.messages, key: room.name });
 		}));
 	}
@@ -108,12 +120,17 @@ var Input = React.createClass({
 	displayName: 'Input',
 
 	propTypes: {
-		//onChange: React.propTypes.Function
-		//onSend:
-		//value: React.PropTypes.string
+		onChange: React.PropTypes.func,
+		onSend: React.PropTypes.func,
+		value: React.PropTypes.string
 	},
 	render: function () {
-		return React.createElement('div', { className: 'row' }, React.createElement('input', { type: 'text', value: this.props.value, className: 'col-xs-11', onChange: this.props.onChange }), React.createElement('button', { className: 'col-xs-1', onClick: this.props.onSend }, 'Send'));
+		return React.createElement('div', { className: 'row' }, React.createElement('input', { type: 'text', value: this.props.value, className: 'col-xs-11',
+			onKeyDown: this.checkForSend, onChange: this.props.onChange }), React.createElement('button', { className: 'col-xs-1', onClick: this.props.onSend }, 'Send'));
+	},
+
+	checkForSend: function (event) {
+		if (event.key == 'Enter') this.props.onSend(event);
 	}
 });
 
@@ -126,27 +143,171 @@ ReactDOM.render(React.createElement(IRCWebChat, null), document.getElementById('
 var _callbacks = []; //Array of callbacks
 var websocket;
 
-//Src: http://www.mybuddymichael.com/writings/a-regular-expression-for-irc-messages.html
+var IRCStore = {
+	//Registers a change listener.
+	addChangeListener: function (callback) {
+		_callbacks.push(callback);
+	},
+
+	start: function (wsaddr) {
+		websocket = new WebSocket("ws://" + wsaddr);
+		websocket.onmessage = this._recieveMessage;
+		websocket.onclose = this._socketClose;
+	},
+
+	sendMessage: function (msg) {
+		//TODO: Parse message depending on context
+		websocket.send(msg + "\r\n");
+		Rooms.addMessage(msg);
+		updateCallbacks(Rooms.asArray());
+	},
+
+	_recieveMessage: function (e) {
+		Rooms.addMessage(e.data);
+		updateCallbacks(Rooms.asArray());
+	},
+
+	_socketClose: function (e) {
+		console.log("Socket closed: ", e);
+		Rooms.addMessage("Websocket to webserver has closed.");
+		updateCallbacks(Rooms.asArray());
+	}
+
+};
+
+function updateCallbacks(rooms) {
+	for (var k = 0; k < _callbacks.length; k++) _callbacks[k](rooms);
+}
+
+//Data structure to hold the rooms, nick list, etc.
+//TODO: Build a proper ES6 class to manage this.
+var Rooms = {
+	rooms: { "server": { name: "server", users: ["irc server"], messages: [] } },
+
+	asArray: function () {
+		var arr = [];
+		var keys = Object.keys(this.rooms);
+		for (var k = 0; k < keys.length; k++) arr.push(this.rooms[keys[k]]);
+
+		return arr;
+	},
+
+	addRoom: function (room, users) {
+		if (this.rooms[room] !== undefined) return;
+
+		if (users === null || users === undefined) users = [];
+
+		this.rooms[room] = {
+			name: room,
+			users: users,
+			messages: []
+		};
+	},
+
+	removeRoom: function (room) {
+		this.rooms[room] = undefined;
+	},
+
+	addMessageToRoom: function (room, message) {
+		this.rooms[room].messages.push(message);
+	},
+
+	addMessage: function (rawmessage) {
+		rawmessage = rawmessage.trim();
+		var pMessage = parseMessage(rawmessage);
+
+		var room = "server";
+		var output = rawmessage;
+		if (pMessage.command == "PRIVMSG" && pMessage.args.length >= 2) {
+			room = pMessage.args[0];
+			output = pMessage.nick + ": " + pMessage.args[1];
+		} else if (pMessage.command == "JOIN" && pMessage.args.length >= 1) {
+			room = pMessage.args[0];
+			this.addUser(room, pMessage.nick);
+			output = ">>> " + pMessage.nick + " has joined the channel.";
+		} else if (pMessage.command == "PART" && pMessage.args.length >= 1) {
+			room = pMessage.args[0];
+			this.removeUser(room, pMessage.nick);
+			output = "<<< " + pMessage.nick + " has left the channel.";
+		}
+
+		if (this.rooms[room] === undefined) this.addRoom(room);
+
+		this.addMessageToRoom(room, output);
+	},
+
+	addUser: function (room, user) {
+		if (this.rooms[room] === undefined) return;
+		this.rooms[room].users.push(user);
+	},
+
+	removeUser: function (room, user) {
+		//TODO
+	}
+
+};
+
+//Helper methods to parse irc messages.
+
 //[0:fullstring, 1: prefix, 2: command, 3: destination, 4: message contents]
-var ircRegex = /^(?:[:](\S+) )?(\S+)(?: (?!:)(.+?))?(?: [:](.+))?$/;
+var ircRegex = /:(\S+) (\S+) (\S+) ([:print:]+)/;
 
 //[9:fullstring, 1: nick, 2: user, 3: host]
-var userRegex = /^(:\S+)!~(\S+)@(\S+)$/;
+var userRegex = /(\S+)!~(\S+)@(\S+)/;
 
 function parseMessage(message) {
-	var msgarray = message.match(ircRegex);
-
-	console.log("parseMsg: ", message, "parsed: ", msgarray);
-
-	if (msgarray != null && msgarray.length > 4) return {
-		message: msgarray[0],
-		prefix: msgarray[1],
-		command: msgarray[2],
-		destination: msgarray[3],
-		contents: msgarray[4]
+	var retval = {
+		prefix: null, //nick!~user@host
+		nick: null,
+		user: null,
+		host: null,
+		command: null, //PRIVMSG or other command
+		args: [] //Argument for command
 	};
 
-	return null;
+	//Parse the prefix if it is present (:Oooska1!~Oooska@knds.xdsl.dyn.ottcommunications.com)
+	var s = message;
+	if (s[0] == ":") {
+		var end = s.indexOf(' ');
+		retval.prefix = s.substring(1, s.indexOf(' '));
+
+		var prefixArr = retval.prefix.match(userRegex);
+
+		if (prefixArr != null && prefixArr.length >= 4) {
+			retval.nick = prefixArr[1];
+			retval.user = prefixArr[2];
+			retval.host = prefixArr[3];
+		}
+
+		s = s.substring(end + 1, s.length);
+	}
+
+	//Parse the command
+	var end = s.indexOf(' ');
+	retval.command = s.substring(0, end);
+
+	//Parse the parameters by whhite space, everything after the ':' treated as one argument
+	s = s.substring(end + 1, s.length);
+	for (; s.length > 0;) {
+		console.log("Test...");
+		if (s[0] == ':') {
+			retval.args.push(s.substring(1, s.length));
+			break;
+		}
+
+		end = s.indexOf(' ');
+		if (end < 0) {
+			if (s.length > 0) retval.args.push(s);
+			break;
+		} else {
+			retval.args.push(s.substring(0, end));
+			if (end + 1 >= s.length) break;
+			s = s.substring(end + 1, s.length);
+		}
+	}
+
+	console.log("Parsed message: ", retval);
+	return retval;
 }
 
 function parsePrefix(prefix) {
@@ -162,120 +323,6 @@ function parsePrefix(prefix) {
 	};
 	return null;
 }
-
-var _rooms = {
-	"server": { name: "server", users: ["irc server"], messages: [] }
-	//"#room1" : {name: "#room1", users: ["user1", "user2", "user3"], messages: ["message1", "message2", "message3"]},
-	//"#room2" : {name: "#room2", users: ["user1", "user2", "user4"], messages: ["message4", "message5", "message6"]},
-	//"someguy" : {name: "someguy", users: ["someguy"], messages: ["privmessage1", "privmessage2", "privmessage3"]}
-};
-
-function _roomsAsArray() {
-	var arr = [];
-
-	var keys = Object.keys(_rooms);
-	for (var k = 0; k < keys.length; k++) {
-		arr.push(_rooms[keys[k]]);
-	}
-
-	return arr;
-}
-
-function addRoom(room, users) {
-	if (_rooms[room] !== undefined) return;
-
-	if (users === null || users === undefined) users = [];
-
-	_rooms[room] = {
-		name: room,
-		users: users,
-		messages: []
-	};
-}
-
-function removeRoom(room) {
-	_rooms[room] = undefined;
-}
-
-function addMessage(room, message) {
-	if (_rooms[room] === undefined) addRoom(room);
-
-	_rooms[room].messages.push(message);
-}
-
-function addUser(room, user) {
-	if (_rooms[room] === undefined) return;
-	_rooms[room].users.push(user);
-}
-
-function removeUser(room, user) {
-	//TODO
-}
-
-var IRCStore = {
-	//Registers a change listener.
-	addChangeListener: function (callback) {
-		_callbacks.push(callback);
-	},
-
-	init: function (wsaddr) {
-		websocket = new WebSocket("ws://" + wsaddr);
-		websocket.onmessage = this._recieveMessage;
-		websocket.onclose = this._socketClose;
-	},
-
-	sendMessage: function (msg) {
-		//TODO: Parse message depending on context
-		websocket.send(msg + "\r\n");
-		addMessage("server", "YOU :" + msg);
-	},
-
-	_recieveMessage: function (e) {
-		console.log("Received message: ", e);
-
-		//var msg = parseMessage(e.data);
-
-		//if(msg == null){
-		addMessage("server", e.data);
-		/*}
-  		else if(msg.command == "PRIVMSG"){
-  	//Add message for the given room.
-  	//Add user/room if they don't exist
-  			//TODO: Handle private messaging between two people correctly.
-  	var from = parsePrefix(msg.prefix);
-  	addMessage(msg.destination, from.nick +": "+msg.contents);
-  	
-  }
-  		else if(msg.command == "JOIN"){
-  	var from = parsePrefix(msg.prefix);
-  	addUser(msg.destination, from.nick);
-  	addMessage(msg.destination, ">>> "+from.nick+" has joined the channel.");
-  }
-  		else if(msg.command == "PART"){
-  	var from = parsePrefix(msg.prefix);
-  	removeUser(msg.destination, from.nick);
-  	addMessage(msg.destination, "<<< "+from.nick+" has left the channel.");
-  }
-  
-  else {
-  	addMessage("server", msg.message)
-  }*/
-
-		var rooms = _roomsAsArray();
-		for (var k = 0; k < _callbacks.length; k++) {
-			_callbacks[k](rooms);
-		}
-	},
-
-	_socketClose: function (e) {
-		console.log("Socket closed: ", e);
-		addMessage("server", "Websocket to webserver has closed.");
-		var rooms = _roomsAsArray();
-		for (var k = 0; k < _callbacks.length; k++) {
-			_callbacks[k](rooms);
-		}
-	}
-};
 
 module.exports = IRCStore;
 

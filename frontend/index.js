@@ -16,7 +16,7 @@ var IRCWebChat = React.createClass({
 
 	componentWillMount: function(){
 		IRCStore.addChangeListener(this.addMessage);
-		IRCStore.init(window.location.host+"/chat/socket");
+		IRCStore.start(window.location.host+"/chat/socket");
 	},
 
 
@@ -30,17 +30,28 @@ var IRCWebChat = React.createClass({
 
 	sendMessage: function(event){
 		event.preventDefault();
-		if(event.CharCode == 13)
-			console.log("!!!ENTER PRESSED!!!")
-		console.log("Received sendMessage event: ", event);
-		IRCStore.sendMessage(this.state.input.value+"\r\n");
+
+		var val = this.state.input.value;
+		if(val.length > 0 && val[0] == '/')
+			val = val.substring(1, val.length);
+		else if(this.activeTab != "")
+			val = "PRIVMSG "+this.state.activeTab+" :" + val;
+		
+		console.log("Sending message. Input: ", this.state.input.value, " Parsed to :",val)
+
+		IRCStore.sendMessage(val);
 		this.setState({input: {value : ''}});
+	},
+
+	_tabChanged: function(newValue){
+		console.log("new tab: ", newValue)
+		this.setState({activeTab: newValue.active});
 	},
 
 	render: function(){
 		return (
 			<div className="container-fluid">
-				<TabbedRooms rooms={this.state.rooms} />
+				<TabbedRooms rooms={this.state.rooms} activeTab={this.state.activeTab} onChange={this._tabChanged} />
 				<Input value={this.state.input.value} onChange={this.inputChange} onSend={this.sendMessage} />
 			</div>
 		)
@@ -52,13 +63,16 @@ var TabbedRooms = React.createClass({
 		rooms: React.PropTypes.arrayOf(React.PropTypes.shape({
 			name: React.PropTypes.string.isRequired,
 			users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
-			messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
-		}))
+			messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
+		})),
+
+		activeTab: React.PropTypes.string.isRequired,
+		onChange: React.PropTypes.func.isRequired
 	},
 
 	render: function(){
 		return (
-			<Tabs useState={true} propName={'name'} childClassNames="row col-xs-12">
+			<Tabs active={this.props.activeTab} useState={true} propName={'name'} onChange={this.props.onChange}>
 				{this.props.rooms.map(function(room){
 					return <Room name={room.name} users={room.users} messages={room.messages} key={room.name} />
 				})}
@@ -77,7 +91,7 @@ var Room = React.createClass({
 	render: function(){
 		var isRoom = this.props.name[0] == '#';
 		return (
-			<div className="row" >
+			<div className="row">
 				<MessageList messages={this.props.messages} />
 				{isRoom ? <NickList users={this.props.users} /> : null}
 			</div>
@@ -120,17 +134,23 @@ var MessageList = React.createClass({
 
 var Input = React.createClass({
 	propTypes: {
-		//onChange: React.propTypes.Function
-		//onSend:
-		//value: React.PropTypes.string
+		onChange: React.PropTypes.func,
+		onSend: React.PropTypes.func,
+		value: React.PropTypes.string
 	}, 
 	render: function(){
 		return (
 			<div className="row">
-				<input type="text" value={this.props.value} className="col-xs-11" onChange={this.props.onChange}  />
+				<input type="text" value={this.props.value} className="col-xs-11" 
+				       onKeyDown={this.checkForSend} onChange={this.props.onChange}  />
 				<button className="col-xs-1" onClick={this.props.onSend}>Send</button>
 			</div>
 		)
+	},
+
+	checkForSend: function(event){
+		if(event.key == 'Enter')
+			this.props.onSend(event);
 	}
 });
 
