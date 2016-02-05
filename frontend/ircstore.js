@@ -4,6 +4,11 @@
 var _callbacks = []; //Array of callbacks
 var websocket;
 
+
+/* The IRCStore is the interface between the react components, and the actual datastructures
+	that communicate with the server and manage the client state.
+
+*/
 var IRCStore = {
 	//Registers a change listener. 
 	addChangeListener: function(callback){
@@ -11,6 +16,7 @@ var IRCStore = {
 	},
 
 
+	//Create a new websocket at the provided address.
 	start: function(wsaddr){
         websocket = new WebSocket("ws://"+wsaddr);
         websocket.onmessage = this._recieveMessage;
@@ -44,10 +50,104 @@ function updateCallbacks(rooms){
 }
 
 
-//Data structure to hold the rooms, nick list, etc.
+
+
+//The Rooms variable holds the data structure that maintains the current client status.
 //TODO: Build a proper ES6 class to manage this. 
+//TODO: Rename Rooms to something more appropriate.
+/*
+
+The addMessage() function will eventually parse the message and act appropriately
+to update the state of the irc client. //TODO: Most of the previous sentence.
+
+The data structure mirrors the react props.
+//TODO: 
+{
+	"#roomname1": {
+		name : "#roomname1", 
+		users: ["user1", "user2"], 
+		messages: ["string1", "string2"]
+		updating_353: bool //bool representing whether the room is actively getting a new user list from the server
+	},
+
+	"#roomname2": {
+		name : "#roomname2", 
+		users: ["user2", "user3"], 
+		messages: ["string11", "string222"]
+	},
+
+	"user2": {
+		name : "user2", 
+		users: ["user2"], 
+		messages: ["string1", "string2"]
+	},
+}
+
+*/
+var ERR_ROOM_404 = "The specified room does not exist."
+
 var Rooms = {
 	rooms: { "server": {name : "server", users: ["irc server"], messages: []}},
+
+	addMessage: function(rawmessage){
+		rawmessage = rawmessage.trim();
+		var pMessage = parseMessage(rawmessage);
+		console.log("parsed message: ", rawmessage, pMessage);
+
+		var room = "server";
+		var output = rawmessage;
+		
+
+		if(pMessage.command == "PRIVMSG" && pMessage.args.length >= 2){
+			room = pMessage.args[0];
+			output = pMessage.nick +": "+pMessage.args[1];
+		
+		} else if (pMessage.command == "JOIN" && pMessage.args.length >= 1){
+			room = pMessage.args[0];
+			if(pMessage.prefix == null){ 
+				//The user joined a channel
+				if(!this.roomExists())
+					this.createRoom(room);
+			} else { //Someone else joined a channel
+				this.addUser(room, pMessage.nick);
+				output = ">>> "+pMessage.nick+" has joined the channel.";
+			}
+		
+		} else if(pMessage.command == "PART" && pMessage.args.length >= 1){
+			room = pMessage.args[0];
+			this.removeUser(room, pMessage.nick);
+			output = "<<< "+pMessage.nick+" has left the channel.";
+		
+		} else if(pMessage.command == "353") { //Response to /names or /join : 
+			//:hobana.freenode.net 353 NotSoShadyBloke = #mainehackerclub :NotSoShadyBloke Oooska1 kroker1 +alsochris
+			room = pMessage.args[2];
+			if(pMessage.args[3]){
+				var users = pMessage.args[3].split(" "); 
+				var roomObj = this.getRoom(room);
+				if(!roomObj.updating_353){
+					//Server is providing a fresh list of users, clear out old list
+					roomObj.updating_353 = true;
+					this.clearUsers(room);
+				}
+				
+				for(var k = 0; k < users.length; k++){
+					this.addUser(room, users[k]);
+				}
+			}
+		} else if(pMessage.command == "366"){ //The end of /names
+			//Notifying us the users list is up to date.
+			room = pMessage.args[1];
+			if(room && this.getRoom(room)){
+				//We are done updating the user list
+				this.getRoom(room).updating_353 = false;
+			}
+		}
+
+		if(!this.roomExists())
+			this.createRoom(room);
+
+		this._addMessageToRoom(room, output);
+	},
 
 	asArray: function(){
 		var arr = [];
@@ -58,7 +158,11 @@ var Rooms = {
 		return arr;
 	},
 
-	addRoom: function(room, users) {
+	roomExists: function(room){
+		return this.rooms[room] !== undefined;
+	},
+
+	createRoom: function(room, users) {
 		if(this.rooms[room] !== undefined)
 			return;
 
@@ -76,53 +180,45 @@ var Rooms = {
 		this.rooms[room] = undefined;
 	},
 
-	addMessageToRoom: function(room, message){
-		this.rooms[room].messages.push(message);	
+	getRoom: function(room){
+		return this.rooms[room];
 	},
 
-	addMessage: function(rawmessage){
-		rawmessage = rawmessage.trim();
-		var pMessage = parseMessage(rawmessage);
-
-		var room = "server";
-		var output = rawmessage;
-		if(pMessage.command == "PRIVMSG" && pMessage.args.length >= 2){
-			room = pMessage.args[0];
-			output = pMessage.nick +": "+pMessage.args[1];
-		} else if (pMessage.command == "JOIN" && pMessage.args.length >= 1){
-			room = pMessage.args[0];
-			this.addUser(room, pMessage.nick);
-			output = ">>> "+pMessage.nick+" has joined the channel.";
-		} else if(pMessage.command == "PART" && pMessage.args.length >= 1){
-			room = pMessage.args[0];
-			this.removeUser(room, pMessage.nick);
-			output = "<<< "+pMessage.nick+" has left the channel.";
-		}
-
-		if(this.rooms[room] === undefined)
-			this.addRoom(room);
-
-		this.addMessageToRoom(room, output);
-	},
 
 	addUser: function(room, user){
 		if(this.rooms[room] === undefined)
-			return;
-		this.rooms[room].users.push(user);
+			throw ERR_ROOM_404;
+
+		if(this.rooms[room].users.indexOf(user) < 0)
+			this.rooms[room].users.push(user);
 	},
 
+	//clearUsers removes all users from the room
+	clearUsers: function(room){
+		this.rooms[room].users = [];
+	},
+
+	//removeUser removes the user from the room.
 	removeUser: function(room, user){
-		//TODO
-	}
+		if(this.rooms[room] === undefined)
+			throw ERR_ROOM_404;
+
+		var index = this.rooms[room].users.indexOf(user);
+		if(index >= 0){
+			this.rooms[room].users.splice(index, 1);
+		}
+
+	},
+
+	//Adds the specified message to the end of the room's messagelist.
+	_addMessageToRoom: function(room, message){
+		this.rooms[room].messages.push(message);	
+	},
 
 }
 
 
-//Helper methods to parse irc messages.
-
-//[0:fullstring, 1: prefix, 2: command, 3: destination, 4: message contents]
-var ircRegex = /:(\S+) (\S+) (\S+) ([:print:]+)/
-
+//Helper methods to parse irc messages. 
 //[9:fullstring, 1: nick, 2: user, 3: host]
 var userRegex = /(\S+)!~(\S+)@(\S+)/
 
@@ -156,13 +252,12 @@ function parseMessage(message){
 
 	//Parse the command
 	var end = s.indexOf(' ');
-	retval.command = s.substring(0, end);
+	retval.command = s.substring(0, end).toUpperCase();
 
 
 	//Parse the parameters by whhite space, everything after the ':' treated as one argument
 	s = s.substring(end+1, s.length);
 	for (;s.length > 0;){
-		console.log("Test...")
 		if(s[0] == ':'){
 			retval.args.push(s.substring(1,s.length));
 			break;
@@ -182,14 +277,11 @@ function parseMessage(message){
 
 	}
 
-	console.log("Parsed message: ", retval)
 	return retval;
 }
 
 function parsePrefix(prefix){
 	var prefixarray = prefix.match(userRegex);
-
-	console.log("parsePrefix: ", prefix, " parsed :", prefixarray);
 
 	if(prefixarray != null && prefixarray.length > 3)
 	return {
