@@ -24,6 +24,8 @@ div.messagelist > span {
 div.nicklist {
 	background-color: white;
 	text-align: right;
+	overflow-y: scroll;
+	max-height: 400px;
 }
 
 div.ircinput {

@@ -4,7 +4,7 @@
 var _callbacks = []; //Array of callbacks
 var websocket;
 
-
+var SERVER_CH = "Server";
 /* The IRCStore is the interface between the react components, and the actual datastructures
 	that communicate with the server and manage the client state.
 
@@ -87,39 +87,61 @@ The data structure mirrors the react props.
 var ERR_ROOM_404 = "The specified room does not exist."
 
 var Rooms = {
-	rooms: { "server": {name : "server", users: ["irc server"], messages: []}},
+	mynick: "",
+	rooms: { "Server": {name : SERVER_CH, users: ["irc server"], messages: []}},
 
 	addMessage: function(rawmessage){
 		rawmessage = rawmessage.trim();
 		var pMessage = parseMessage(rawmessage);
 		console.log("parsed message: ", rawmessage, pMessage);
 
-		var room = "server";
+		var room = SERVER_CH;;
 		var output = rawmessage;
 		
 
 		if(pMessage.command == "PRIVMSG" && pMessage.args.length >= 2){
 			room = pMessage.args[0];
-			output = pMessage.nick +": "+pMessage.args[1];
+			console.log("Recieved privmsg for recipient: ", room)
+			if(pMessage.prefix){
+				if(room[0] != '#'){ //Not a room? Privmsg to a user, room is rheir nick
+					room = pMessage.nick;
+				}
+				output = pMessage.nick +": "+pMessage.args[1];
+			} else {
+				output = this.mynick + ": "+pMessage.args[1];
+			}
 		
+
 		} else if (pMessage.command == "JOIN" && pMessage.args.length >= 1){
 			room = pMessage.args[0];
 			if(pMessage.prefix == null){ 
 				//The user joined a channel
-				if(!this.roomExists())
+				if(!this.roomExists(room))
 					this.createRoom(room);
 			} else { //Someone else joined a channel
 				this.addUser(room, pMessage.nick);
 				output = ">>> "+pMessage.nick+" has joined the channel.";
 			}
 		
+
 		} else if(pMessage.command == "PART" && pMessage.args.length >= 1){
 			room = pMessage.args[0];
 			this.removeUser(room, pMessage.nick);
 			output = "<<< "+pMessage.nick+" has left the channel.";
 		
-		} else if(pMessage.command == "353") { //Response to /names or /join : 
-			//:hobana.freenode.net 353 NotSoShadyBloke = #mainehackerclub :NotSoShadyBloke Oooska1 kroker1 +alsochris
+
+		} else if(pMessage.command == "NICK"){
+			//You/server sent a nick command on your behalf
+			if(pMessage.prefix == null){
+				if(pMessage.args[0])
+					this.mynick = pMessage.args[0];
+			} else if(pMessage.nick != null && pMessage.args[0]){
+				//Someone else is changing their nick
+				this.changeNick(pMessage.nick, pMessage.args[0]);
+			}
+
+
+		}else if(pMessage.command == "353") { //Response to /names or /join : 
 			room = pMessage.args[2];
 			if(pMessage.args[3]){
 				var users = pMessage.args[3].split(" "); 
@@ -143,8 +165,10 @@ var Rooms = {
 			}
 		}
 
-		if(!this.roomExists())
+		if(!this.roomExists(room)){
+			console.log("Room "+room+" doesn't exist... creating")
 			this.createRoom(room);
+		}
 
 		this._addMessageToRoom(room, output);
 	},
@@ -208,6 +232,11 @@ var Rooms = {
 			this.rooms[room].users.splice(index, 1);
 		}
 
+	},
+
+	changeNick: function(oldnick, newnick){
+		console.log(oldnick+" changed their name to "+newnick);
+		//TODO: Change nick in all channels it is found in
 	},
 
 	//Adds the specified message to the end of the room's messagelist.

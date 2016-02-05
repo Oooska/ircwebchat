@@ -84,6 +84,9 @@ func webSocketHandler(ws *websocket.Conn) {
 		log.Printf("Unable to find session for ", user.username)
 		return
 	}
+
+	//Notify the client what the user's current nick is
+	client.SendMessage(irc.NewMessage("NICK " + user.profile.nick.name))
 	newclients <- &client
 
 	for {

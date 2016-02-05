@@ -9,8 +9,8 @@ var IRCStore = require('./ircstore')
 var IRCWebChat = React.createClass({
 	getInitialState: function(){
 		return {
-			rooms: [{name: "server", users: ["server"], messages: ["Loading..."]}],
-			activeTab: "server",
+			rooms: [{name: "Server", users: [], messages: ["Loading..."]}],
+			activeTab: "Server",
 			input: {value: ""}
 		}
 	},
@@ -36,8 +36,10 @@ var IRCWebChat = React.createClass({
 		var val = this.state.input.value;
 		if(val.length > 0 && val[0] == '/')
 			val = val.substring(1, val.length);
-		else if(this.activeTab != "")
+		else if(this.state.activeTab != "" && this.state.activeTab != "Server"){
+			console.log("this.activeTab: ", this.activeTab)
 			val = "PRIVMSG "+this.state.activeTab+" :" + val;
+		}
 		
 		console.log("Sending message. Input: ", this.state.input.value, " Parsed to :",val)
 
@@ -79,6 +81,7 @@ var TabbedRooms = React.createClass({
 	},
 
 	render: function(){
+		var self = this;
 		return (
 			<Tabs active={this.props.activeTab} propName={'name'} onChange={this.props.onChange}>
 				{this.props.rooms.map(function(room){
@@ -117,9 +120,11 @@ var NickList = React.createClass({
 		for(var k=0; k < this.props.users.length; k++)
 			rows.push(<li className="nick" key={k}>{this.props.users[k]}</li>)
 		return (
-			<ul className="nicklist col-xs-2">
-				{rows}
-			</ul>
+			<div className="nicklist">
+				<ul className="col-xs-2">
+					{rows}
+				</ul>
+			</div>
 		)
 	}
 });
@@ -128,6 +133,21 @@ var MessageList = React.createClass({
 	propTypes: {
 		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
 	},
+
+	componentWillUpdate: function(){
+		//Determine if we're at the bottom of the message list
+		var node = ReactDOM.findDOMNode(this);
+		this.atBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
+	},
+
+	componentDidUpdate: function(){
+		if(this.atBottom){ 
+			//If we're at the bottom, make sure we stay at the bottom
+			var node = ReactDOM.findDOMNode(this);
+			node.scrollTop = node.scrollHeight;
+		}
+	},
+
 	render: function(){
 		var rows = [];
 		for(var k=0; k < this.props.messages.length; k++)

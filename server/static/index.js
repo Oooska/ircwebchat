@@ -13,8 +13,8 @@ var IRCWebChat = React.createClass({
 
 	getInitialState: function () {
 		return {
-			rooms: [{ name: "server", users: ["server"], messages: ["Loading..."] }],
-			activeTab: "server",
+			rooms: [{ name: "Server", users: [], messages: ["Loading..."] }],
+			activeTab: "Server",
 			input: { value: "" }
 		};
 	},
@@ -36,7 +36,10 @@ var IRCWebChat = React.createClass({
 		event.preventDefault();
 
 		var val = this.state.input.value;
-		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.activeTab != "") val = "PRIVMSG " + this.state.activeTab + " :" + val;
+		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.state.activeTab != "" && this.state.activeTab != "Server") {
+			console.log("this.activeTab: ", this.activeTab);
+			val = "PRIVMSG " + this.state.activeTab + " :" + val;
+		}
 
 		console.log("Sending message. Input: ", this.state.input.value, " Parsed to :", val);
 
@@ -75,6 +78,7 @@ var TabbedRooms = React.createClass({
 	},
 
 	render: function () {
+		var self = this;
 		return React.createElement(Tabs, { active: this.props.activeTab, propName: 'name', onChange: this.props.onChange }, this.props.rooms.map(function (room) {
 			return React.createElement(Room, { name: room.name, users: room.users, messages: room.messages, key: room.name });
 		}));
@@ -106,7 +110,7 @@ var NickList = React.createClass({
 	render: function () {
 		var rows = [];
 		for (var k = 0; k < this.props.users.length; k++) rows.push(React.createElement('li', { className: 'nick', key: k }, this.props.users[k]));
-		return React.createElement('ul', { className: 'nicklist col-xs-2' }, rows);
+		return React.createElement('div', { className: 'nicklist' }, React.createElement('ul', { className: 'col-xs-2' }, rows));
 	}
 });
 
@@ -116,6 +120,21 @@ var MessageList = React.createClass({
 	propTypes: {
 		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
 	},
+
+	componentWillUpdate: function () {
+		//Determine if we're at the bottom of the message list
+		var node = ReactDOM.findDOMNode(this);
+		this.atBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
+	},
+
+	componentDidUpdate: function () {
+		if (this.atBottom) {
+			//If we're at the bottom, make sure we stay at the bottom
+			var node = ReactDOM.findDOMNode(this);
+			node.scrollTop = node.scrollHeight;
+		}
+	},
+
 	render: function () {
 		var rows = [];
 		for (var k = 0; k < this.props.messages.length; k++) rows.push(React.createElement('span', { key: k }, this.props.messages[k]));
@@ -150,6 +169,7 @@ ReactDOM.render(React.createElement(IRCWebChat, null), document.getElementById('
 var _callbacks = []; //Array of callbacks
 var websocket;
 
+var SERVER_CH = "Server";
 /* The IRCStore is the interface between the react components, and the actual datastructures
 	that communicate with the server and manage the client state.
 
@@ -226,24 +246,34 @@ The data structure mirrors the react props.
 var ERR_ROOM_404 = "The specified room does not exist.";
 
 var Rooms = {
-	rooms: { "server": { name: "server", users: ["irc server"], messages: [] } },
+	mynick: "",
+	rooms: { "Server": { name: SERVER_CH, users: ["irc server"], messages: [] } },
 
 	addMessage: function (rawmessage) {
 		rawmessage = rawmessage.trim();
 		var pMessage = parseMessage(rawmessage);
 		console.log("parsed message: ", rawmessage, pMessage);
 
-		var room = "server";
+		var room = SERVER_CH;;
 		var output = rawmessage;
 
 		if (pMessage.command == "PRIVMSG" && pMessage.args.length >= 2) {
 			room = pMessage.args[0];
-			output = pMessage.nick + ": " + pMessage.args[1];
+			console.log("Recieved privmsg for recipient: ", room);
+			if (pMessage.prefix) {
+				if (room[0] != '#') {
+					//Not a room? Privmsg to a user, room is rheir nick
+					room = pMessage.nick;
+				}
+				output = pMessage.nick + ": " + pMessage.args[1];
+			} else {
+				output = this.mynick + ": " + pMessage.args[1];
+			}
 		} else if (pMessage.command == "JOIN" && pMessage.args.length >= 1) {
 			room = pMessage.args[0];
 			if (pMessage.prefix == null) {
 				//The user joined a channel
-				if (!this.roomExists()) this.createRoom(room);
+				if (!this.roomExists(room)) this.createRoom(room);
 			} else {
 				//Someone else joined a channel
 				this.addUser(room, pMessage.nick);
@@ -253,9 +283,16 @@ var Rooms = {
 			room = pMessage.args[0];
 			this.removeUser(room, pMessage.nick);
 			output = "<<< " + pMessage.nick + " has left the channel.";
+		} else if (pMessage.command == "NICK") {
+			//You/server sent a nick command on your behalf
+			if (pMessage.prefix == null) {
+				if (pMessage.args[0]) this.mynick = pMessage.args[0];
+			} else if (pMessage.nick != null && pMessage.args[0]) {
+				//Someone else is changing their nick
+				this.changeNick(pMessage.nick, pMessage.args[0]);
+			}
 		} else if (pMessage.command == "353") {
 			//Response to /names or /join :
-			//:hobana.freenode.net 353 NotSoShadyBloke = #mainehackerclub :NotSoShadyBloke Oooska1 kroker1 +alsochris
 			room = pMessage.args[2];
 			if (pMessage.args[3]) {
 				var users = pMessage.args[3].split(" ");
@@ -280,7 +317,10 @@ var Rooms = {
 			}
 		}
 
-		if (!this.roomExists()) this.createRoom(room);
+		if (!this.roomExists(room)) {
+			console.log("Room " + room + " doesn't exist... creating");
+			this.createRoom(room);
+		}
 
 		this._addMessageToRoom(room, output);
 	},
@@ -336,6 +376,11 @@ var Rooms = {
 		if (index >= 0) {
 			this.rooms[room].users.splice(index, 1);
 		}
+	},
+
+	changeNick: function (oldnick, newnick) {
+		console.log(oldnick + " changed their name to " + newnick);
+		//TODO: Change nick in all channels it is found in
 	},
 
 	//Adds the specified message to the end of the room's messagelist.
