@@ -13,8 +13,8 @@ ul.tabs > li {
 
 div.messagelist {
 	background-color: white;
-	overflow-y: scroll;
-	max-height: 400px;
+	overflow-y: auto;
+	height: 90vh;
 }
 
 div.messagelist > span {
@@ -23,13 +23,20 @@ div.messagelist > span {
 
 div.nicklist {
 	background-color: white;
-	text-align: right;
-	overflow-y: scroll;
-	max-height: 400px;
+	text-align: left;
+	overflow-y: auto;
+	height: 90vh;
+}
+
+ul.col-xs-2 {
+	list-style-type: none;
+	padding: 20px;
+	width: 100%;
 }
 
 div.ircinput {
 	position: absolute;
-	bottom: 0;
+	/*bottom: 0;*/
 	width: 100%;
+	padding: 5px 0;
 }
