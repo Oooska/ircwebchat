@@ -48,6 +48,6 @@ npm run build - Compile the javascript one time and place it
 npm run watch - Watches for changes in javascript files, re-compiles,
 				and updates ../server/static/index.js
 
-Contributors:
+#Contributors:
 	infina		- Thanks for the CSS updates, and being the first contributor.
 	ubuntuguru	- For the idea
