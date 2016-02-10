@@ -392,7 +392,7 @@ var Rooms = {
 
 //Helper methods to parse irc messages.
 //[9:fullstring, 1: nick, 2: user, 3: host]
-var userRegex = /(\S+)!~(\S+)@(\S+)/;
+var userRegex = /(\S+)!(\S+)@(\S+)/;
 
 function parseMessage(message) {
 	var retval = {
@@ -425,7 +425,7 @@ function parseMessage(message) {
 	var end = s.indexOf(' ');
 	retval.command = s.substring(0, end).toUpperCase();
 
-	//Parse the parameters by whhite space, everything after the ':' treated as one argument
+	//Parse the parameters by white space, everything after the ':' treated as one argument
 	s = s.substring(end + 1, s.length);
 	for (; s.length > 0;) {
 		if (s[0] == ':') {
