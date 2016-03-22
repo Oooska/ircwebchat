@@ -53,17 +53,17 @@ func webSocketHandler(ws *websocket.Conn) {
 	var client ircClient = newWSClient(ws)
 
 	//Authenticate websocket:
-	var user *iwcUser = nil
+	var user *iwcUser
 
 	for user == nil {
-		client.SendMessage(irc.NewMessage("Enter a username."))
+		client.SendMessage(irc.NewMessage("CLIENT-MESSAGE :Enter a username."))
 		msg, err := client.ReceiveMessage()
 		if err != nil {
 			return
 		}
 		username := strings.TrimSpace(msg.String())
 
-		client.SendMessage(irc.NewMessage("Enter a password."))
+		client.SendMessage(irc.NewMessage("CLIENT-MESSAGE :Enter a password."))
 		msg, err = client.ReceiveMessage()
 		if err != nil {
 			return
@@ -72,16 +72,16 @@ func webSocketHandler(ws *websocket.Conn) {
 		user = authenticate(username, password)
 
 		if user != nil {
-			client.SendMessage("Successfully logged in.")
+			client.SendMessage(irc.NewMessage("CLIENT-MESSAGE :Successfully logged in."))
 		} else {
-			client.SendMessage(irc.NewMessage("Invalid username/password."))
+			client.SendMessage(irc.NewMessage("CLIENT-MESSAGE :Invalid username/password."))
 		}
 	}
 
 	newclients := getSessionNotifier(user.username)
 	if newclients == nil {
-		client.SendMessage("Unable to find session. Closing...")
-		log.Printf("Unable to find session for ", user.username)
+		client.SendMessage(irc.NewMessage("Unable to find session. Closing..."))
+		log.Printf("Unable to find session for %s", user.username)
 		return
 	}
 
@@ -93,7 +93,7 @@ func webSocketHandler(ws *websocket.Conn) {
 		if ws.IsServerConn() {
 			time.Sleep(100 * time.Millisecond)
 		} else {
-			log.Println("!!!!socketHandler returning after IsServerConn returned false")
+			log.Println("socketHandler returning after IsServerConn returned false")
 			return
 		}
 	}

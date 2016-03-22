@@ -19,7 +19,7 @@ type ircClient interface {
 
 //ircManager takes the connection to the IRC server and then coordinates the
 //communication between the irc server, and the active IRCClients
-func ircManager(ircConn irc.IRCConn, newClients chan *ircClient) {
+func ircManager(ircConn irc.Conn, newClients chan *ircClient) {
 	fmt.Println("*** Entering ircManager ***")
 	defer fmt.Println("*** Leaving ircManager ***")
 
@@ -35,21 +35,20 @@ func ircManager(ircConn irc.IRCConn, newClients chan *ircClient) {
 
 	for {
 		select {
-		case msg := <-fromServer:
+		case pmsg := <-fromServer:
+            msg := pmsg.Message
 			//Log it,
 			log.Println(msg)
 
 			//Repsond if it's a ping
-			if len(msg) >= 4 && msg[0:4] == "PING" {
-				var end string = msg[4:].String()
-				ircConn.Write(irc.NewMessage("PONG" + end))
-				//break
-			}
+            if pmsg.Command == "PING" {
+                ircConn.Write(irc.NewMessage("PONG "+pmsg.Params[0]))
+            }
 
 			//...and send it to all clients
 			for k := 0; k < len(clients); k++ {
 				client := *clients[k]
-				err := client.SendMessage(msg)
+				err := client.SendMessage(pmsg)
 
 				if err != nil {
 					stopClientListener(&client)
@@ -84,7 +83,7 @@ func deleteNthItem(a []*ircClient, n int) []*ircClient {
 
 //ircServerListener continuallyu listens for messages from the IRC server.
 //When one is receives, it sends the message into the msg channel.
-func ircServerListener(ircConn irc.IRCConn, msgChan chan<- irc.Message, errChan chan<- error, quitChan <-chan bool) {
+func ircServerListener(ircConn irc.Conn, msgChan chan<- irc.Message, errChan chan<- error, quitChan <-chan bool) {
 	fmt.Println("*** Entering ircListenerClient ***")
 	defer fmt.Println("*** Leaving ircListenerClient ***")
 	for {

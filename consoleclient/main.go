@@ -22,10 +22,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	conn := irc.IRCConnectionWrapper(ws)
+	conn := irc.NewConnectionWrapper(ws)
 
 	go func() { //Read from stdin
-		reader := bufio.NewReader(os.Stdin)
+		reader := bufio.NewReader(os.Stdin) 
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
@@ -47,7 +47,7 @@ func main() {
 		}
 	}()
 
-	var msg irc.Message
+	var msg irc.Message 
 
 	// handle incomming messages
 	for {
@@ -58,10 +58,9 @@ func main() {
 			return
 		}
 
-		if len(msg) >= 4 && msg[0:4] == "PING" {
-			var end string = msg[4:].String()
-			conn.Write(irc.NewMessage("PONG" + end))
-		}
+        if msg.Command == "PING" {
+            conn.Write(irc.NewMessage("PONG "+msg.Params[0]))
+        }
 
 		fmt.Println(msg)
 	}
