@@ -13,9 +13,9 @@ func getSessionNotifier(username string) chan<- *ircClient {
 	sessionNotifier, ok := sessionNewClientsMap[username]
 	if ok {
 		return sessionNotifier
-	} 
-	
-    return nil
+	}
+
+	return nil
 }
 
 //Find all user sessions that should be active and start them
@@ -31,6 +31,7 @@ func startUserSessions() {
 }
 
 func startSession(user iwcUser) error {
+	log.Printf("Starting session for user %s", user.username)
 	//Start the IRC connection... //TODO: Move this elsewhere.
 	conn, err := irc.NewConnection(user.profile.address, false)
 	if err != nil {
@@ -44,7 +45,8 @@ func startSession(user iwcUser) error {
 	conn.Write(irc.NickMessage(user.profile.nick.name))
 	conn.Write(irc.NewMessage("join #gotest"))
 	go ircManager(conn, newClients)
-	log.Println("Starting session for ", user.username)
 	sessionNewClientsMap[user.username] = newClients
+
+	log.Printf("Session for user %s started with no errors.", user.username)
 	return nil
 }
