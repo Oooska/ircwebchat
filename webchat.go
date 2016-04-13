@@ -15,12 +15,19 @@ TODO: Currently only sends data to clients. Need to listen to IRCCLients and pas
 */
 
 //Register mounts an entry point at /chat/ on the supplied http mux.
+//If no mux is supplied, it will be mounted by the default http.Handler
 //TODO: We currently start the connection to the IRC server here. This
 // should be abstracted away.
-func Register(mux http.ServeMux) {
+func Register(mux *http.ServeMux) {
 	fs := http.FileServer(http.Dir("static/"))
-	mux.Handle("/chat/", http.StripPrefix("/chat/", fs))
-	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
+
+	if mux != nil {
+		mux.Handle("/chat/", http.StripPrefix("/chat/", fs))
+		mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
+	} else {
+		http.Handle("/chat/", http.StripPrefix("/chat/", fs))
+		http.Handle("/chat/socket", websocket.Handler(webSocketHandler))
+	}
 
 	user := iwcUser{
 		username: "goirctest",
