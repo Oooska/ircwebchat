@@ -23,20 +23,24 @@ TODO: Currently only sends data to clients. Need to listen to IRCCLients and pas
 //If no mux is supplied, it will be mounted by the default http.Handler
 //TODO: We currently start the connection to the IRC server here. This
 // should be abstracted away.
-func Register(mux *http.ServeMux) {
-	log.Println("Register() called...")
-	templates = populateTemplates()
-
-	if mux != nil {
-		mux.Handle("/", http.HandlerFunc(templateHandler))
-		mux.Handle("/static/", http.HandlerFunc(serveResource))
-		mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
-	} else {
-		http.Handle("/", http.HandlerFunc(templateHandler))
-		http.Handle("/static/", http.HandlerFunc(serveResource))
-		http.Handle("/chat/socket", websocket.Handler(webSocketHandler))
+func Register(t *template.Template, mux *http.ServeMux) {
+	if mux == nil {
+		mux = http.DefaultServeMux
 	}
+	log.Println("Register() called...")
+	templates = t
 
+	ic := indexController{template: templates.Lookup("index.html")}
+	sc := settingsController{template: templates.Lookup("settings.html")}
+	cc := chatController{template: templates.Lookup("chat.html")}
+
+	mux.Handle("/", ic)
+	mux.Handle("/settings", sc)
+	mux.Handle("/chat", cc)
+	mux.Handle("/static/", http.HandlerFunc(serveResource))
+	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
+
+	//Setup some test accounts for now. Will be removed later
 	user := iwcUser{
 		username: "goirctest",
 		password: "password",
@@ -108,9 +112,6 @@ func serveResource(w http.ResponseWriter, req *http.Request) {
 
 func templateHandler(w http.ResponseWriter, req *http.Request) {
 	requestedFile := req.URL.Path[1:]
-	if requestedFile == "" || requestedFile[len(requestedFile)-1] == '/' {
-		requestedFile += "index"
-	}
 	template := templates.Lookup(requestedFile + ".html")
 
 	if template != nil {

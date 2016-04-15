@@ -1,0 +1,8 @@
+<header>
+    <h3>IRC Web Chat</h3>
+    {{if eq . ""}}
+        <div>Welcome Guest. <a href="/register">Register</a> or Sign in: </div>
+    {{else}}
+        <div>Welcome {{.}}</div>
+    {{end}}
+</header>
