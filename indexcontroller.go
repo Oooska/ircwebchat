@@ -22,9 +22,12 @@ func (ic indexController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (ic indexController) get(w http.ResponseWriter, req *http.Request) {
+	acct, err := validateCookie(w, req)
 	site := viewmodels.GetSite()
 	site.Title = "IRC Web Chat"
-
+	if err == nil {
+		site.Username = acct.Username()
+	}
 	w.Header().Add("Content-Header", "text/html")
 
 	log.Printf("Site: %+v", site)

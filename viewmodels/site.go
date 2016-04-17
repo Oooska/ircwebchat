@@ -8,5 +8,5 @@ type Site struct {
 }
 
 func GetSite() Site {
-	return Site{Username: "Jorge"}
+	return Site{}
 }

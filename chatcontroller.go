@@ -2,7 +2,6 @@ package ircwebchat
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 
 	"github.com/oooska/ircwebchat/viewmodels"
@@ -21,9 +20,14 @@ func (cc chatController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (cc chatController) get(w http.ResponseWriter, req *http.Request) {
-	log.Print("Hitting chatcontroller.get()")
 	site := viewmodels.GetSite()
+	acct, err := validateCookie(w, req)
 	site.Title = "IRC Web Chat - Client"
+	if err != nil {
+		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
+		return
+	}
+	site.Username = acct.Username()
 
 	w.Header().Add("Content-Header", "text/html")
 	cc.template.Execute(w, site)

@@ -20,14 +20,22 @@ func (sc settingsController) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	}
 
 	if req.Method == "GET" || req.Method == "POST" {
-		sc.get(w, req)
+		sc.settings(w, req)
 	}
 }
 
-func (sc settingsController) get(w http.ResponseWriter, req *http.Request) {
+func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) {
+	mdlAcct, err := validateCookie(w, req)
+	if err != nil {
+		//Not logged in - get user out of here
+		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
+		return
+	}
 
 	server := viewmodels.GetServer()
 	server.Title = "IRC Web Chat - Settings"
+	server.Username = mdlAcct.Username()
+
 	if req.Method == "POST" {
 		server.Name = req.FormValue("Name")
 		server.Address = req.FormValue("Address")
