@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/websocket"
 
 	"github.com/oooska/irc"
+	"github.com/oooska/ircwebchat/models"
 	"github.com/oooska/ircwebchat/viewmodels"
 )
 
@@ -52,8 +53,8 @@ func webSocketHandler(ws *websocket.Conn) {
 	client := irc.NewConnectionWrapper(ws)
 
 	//Authenticate websocket:
-	var user *iwcUser
-
+	var user models.Account
+	var err error
 	for user == nil {
 		client.Write(irc.NewMessage("CLIENT-MESSAGE :Enter a username."))
 		msg, err := client.Read()
@@ -68,24 +69,32 @@ func webSocketHandler(ws *websocket.Conn) {
 			return
 		}
 		password := strings.TrimSpace(msg.String())
-		user = authenticate(username, password)
+		user, err = modelAccounts.Authenticate(username, password)
 
-		if user != nil {
-			client.Write(irc.NewMessage("CLIENT-MESSAGE :Successfully logged in."))
-		} else {
+		if err != nil {
 			client.Write(irc.NewMessage("CLIENT-MESSAGE :Invalid username/password."))
+		} else {
+			client.Write(irc.NewMessage("CLIENT-MESSAGE :Successfully logged in."))
 		}
+
 	}
 
-	newclients := getSessionNotifier(user.username)
+	newclients := chatManager.SessionNotifier(user)
 	if newclients == nil {
 		client.Write(irc.NewMessage("Unable to find session. Closing..."))
-		log.Printf("Unable to find session for %s", user.username)
+		log.Printf("Unable to find session for %s", user.Username())
+		return
+	}
+
+	settings, err := modelSettings.Settings(user)
+	if err != nil {
+		client.Write(irc.NewMessage("Unable to find valid settings. Closing..."))
+		log.Printf("Unable to find settings for %s", user.Username())
 		return
 	}
 
 	//Notify the client what the user's current nick is
-	client.Write(irc.NewMessage("NICK " + user.profile.nick.name))
+	client.Write(irc.NickMessage(settings.Login().Nick))
 	newclients <- client
 
 	for {

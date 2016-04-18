@@ -4,6 +4,26 @@ import "errors"
 
 func NewSettingsManager() SettingsManager {
 	sm := settingsMgr{settings: make(map[string]settings)}
+
+	//Dummy data
+	sm.settings["goirctest"] = settings{
+		name:     "Freenode",
+		address:  "irc.freenode.net",
+		ssl:      false,
+		port:     6667,
+		login:    IRCLogin{Nick: "goirctest", Password: ""},
+		altlogin: IRCLogin{Nick: "goirctest_", Password: ""},
+	}
+
+	sm.settings["goirctest2"] = settings{
+		name:     "Freenode",
+		address:  "irc.freenode.net",
+		ssl:      false,
+		port:     6667,
+		login:    IRCLogin{Nick: "goirctest2", Password: ""},
+		altlogin: IRCLogin{Nick: "goirctest2_", Password: ""},
+	}
+
 	return sm
 }
 

@@ -25,6 +25,7 @@ var templates *template.Template
 var modelAccounts = models.NewAccounts()
 var modelSessions = models.NewSessions()
 var modelSettings = models.NewSettingsManager()
+var chatManager = models.NewChatManager()
 
 //Register mounts an entry point at / on the supplied http mux.
 //If no mux is supplied, it will be mounted by the default http.Handler
@@ -53,45 +54,9 @@ func Register(t *template.Template, mux *http.ServeMux) {
 	mux.Handle("/static/", http.HandlerFunc(serveResource))
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
-	//Setup some test accounts for now. Will be removed later
-	user := iwcUser{
-		username: "goirctest",
-		password: "password",
-		profile: serverProfile{
-			address: "irc.freenode.net:6667",
-			nick: login{
-				name:     "goirctest",
-				password: "",
-			},
-			realname: "go-get-real",
-			altnick: login{
-				name:     "goirctest_",
-				password: "",
-			},
-		},
-	}
-	user2 := iwcUser{
-		username: "goirctest2",
-		password: "password",
-		profile: serverProfile{
-			address: "irc.freenode.net:6667",
-			nick: login{
-				name:     "goirctest2",
-				password: "",
-			},
-			altnick: login{
-				name:     "goirctest2_",
-				password: "",
-			},
-			realname: "go-get-real",
-		},
-	}
-
-	addUser(user)
-	addUser(user2)
-
 	log.Print("About to start user sessions...")
 	//go startUserSessions()
+	chatManager.StartSessions(modelAccounts, modelSettings)
 	log.Print("User sessions started.")
 }
 

@@ -6,7 +6,12 @@ import (
 )
 
 func NewAccounts() Accounts {
-	return accounts{accounts: make(map[string]Account)}
+	accts := accounts{acctmap: make(map[string]Account)}
+
+	//dummy data
+	accts.Register("goirctest", "password", "a@b.c")
+	accts.Register("goirctest2", "password", "a@b.c")
+	return accts
 }
 
 //Accounts maintains a list of accounts on the server.
@@ -14,14 +19,19 @@ type Accounts interface {
 	Account(username string) (Account, error)
 	Authenticate(username, pass string) (Account, error)
 	Register(username, password, email string) (Account, error)
+	accountMap() map[string]Account
 }
 
 type accounts struct {
-	accounts map[string]Account
+	acctmap map[string]Account
+}
+
+func (accts accounts) accountMap() map[string]Account {
+	return accts.acctmap
 }
 
 func (accs accounts) Account(username string) (Account, error) {
-	acct, ok := accs.accounts[username]
+	acct, ok := accs.acctmap[username]
 	if !ok {
 		return acct, errors.New("Account does not exist")
 	}
@@ -32,7 +42,7 @@ func (accs accounts) Account(username string) (Account, error) {
 }
 
 func (accs accounts) Authenticate(username, pass string) (Account, error) {
-	acct, ok := accs.accounts[username]
+	acct, ok := accs.acctmap[username]
 	if !ok {
 		return acct, errors.New("Invalid username/password")
 	}
@@ -48,7 +58,7 @@ func (accs accounts) Authenticate(username, pass string) (Account, error) {
 
 //TODO: Proper validation of values
 func (accs accounts) Register(username, password, email string) (Account, error) {
-	acct, ok := accs.accounts[username]
+	acct, ok := accs.acctmap[username]
 	if ok {
 		return nil, errors.New("Username already exists.")
 	}
@@ -64,7 +74,7 @@ func (accs accounts) Register(username, password, email string) (Account, error)
 	}
 
 	acct = account{username: username, password: password, email: email, active: true}
-	accs.accounts[username] = acct
+	accs.acctmap[username] = acct
 	return acct, nil
 }
 
