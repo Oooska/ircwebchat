@@ -7,9 +7,9 @@ import (
 )
 
 //Map usernames to channel that looks for new web clients
-var sessionNewClientsMap = make(map[string]chan<- *ircClient)
+var sessionNewClientsMap = make(map[string]chan<- irc.Conn)
 
-func getSessionNotifier(username string) chan<- *ircClient {
+func getSessionNotifier(username string) chan<- irc.Conn {
 	sessionNotifier, ok := sessionNewClientsMap[username]
 	if ok {
 		return sessionNotifier
@@ -39,7 +39,7 @@ func startSession(user iwcUser) error {
 	}
 
 	//Channel to accept new http clients logging in
-	newClients := make(chan *ircClient)
+	newClients := make(chan irc.Conn)
 
 	conn.Write(irc.UserMessage(user.username, "servername", "hostname", user.profile.realname))
 	conn.Write(irc.NickMessage(user.profile.nick.name))
