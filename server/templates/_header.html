@@ -1,8 +1,19 @@
 <header>
     <h3>IRC Web Chat</h3>
     {{if eq . ""}}
-        <div>Welcome Guest. <a href="/register">Register</a> or Sign in: </div>
+        <div>
+            Welcome Guest. 
+            <a href="/register">Register</a> or Sign in: 
+            <form action="/login" method="POST">
+                <label>Username: <input type="text" name="Username"/></label>
+                <label>Password: <input type="password" name="Password"/></label>
+                <button type="submit">Login</button>
+            </form>
+        </div>
     {{else}}
-        <div>Welcome {{.}}</div>
+        <div>
+            Welcome {{.}} 
+            <form action="/logout" method="POST"><button type="submit">Logout</button></form>
+        </div>
     {{end}}
 </header>

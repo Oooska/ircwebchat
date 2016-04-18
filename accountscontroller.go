@@ -2,7 +2,6 @@ package ircwebchat
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 	"time"
 
@@ -20,11 +19,47 @@ func (ac accountsController) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		ac.register(w, req)
 	} else if req.URL.Path == "/login" && req.Method == "POST" {
 		//Authenticate user, set cookie
+		ac.login(w, req)
 	} else if req.URL.Path == "/logout" && req.Method == "POST" {
 		//Sign user out
+		ac.logout(w, req)
 	} else {
 		w.WriteHeader(404)
 	}
+}
+
+func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
+	username := req.FormValue("Username")
+	password := req.FormValue("Password")
+	if username == "" || password == "" {
+		w.Write([]byte("Invalid username/password."))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	acct, err := modelAccounts.Authenticate(username, password)
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	//Success, create session and send off to chat
+	sessID, expires := modelSessions.Start(acct)
+	setSessionCookie(w, sessID, expires)
+	http.Redirect(w, req, "/chat", http.StatusFound)
+}
+
+func (ac accountsController) logout(w http.ResponseWriter, req *http.Request) {
+	_, err := validateCookie(w, req)
+	if err != nil {
+		//Not logged in. No signing out to be done.
+		http.Redirect(w, req, "/chat", http.StatusFound)
+		return
+	}
+	sessID := sessionIDFromCookie(req)
+	modelSessions.Delete(sessID)
+	deleteSessionCookie(w)
+	http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 }
 
 func (ac accountsController) register(w http.ResponseWriter, req *http.Request) {
@@ -42,7 +77,6 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 		account.Email = req.FormValue("Email")
 		account.Password = req.FormValue("Password")
 		account.ConfirmPassword = req.FormValue("ConfirmPassword")
-		log.Printf("Recieved POSTed account registration: %+v", account)
 		errs := account.Validate()
 
 		if len(errs) == 0 {
@@ -50,8 +84,7 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 			if err != nil {
 				errs["Model"] = err
 			} else {
-				log.Printf("Successfully registered %s", account.Username)
-				//Successfully register. Get this man an auth token
+				//Successfully register. Get this man (or woman) an auth token
 				sessID, expires := modelSessions.Start(mdlAcct)
 				setSessionCookie(w, sessID, expires)
 				http.Redirect(w, req, "/settings", http.StatusFound)
@@ -74,6 +107,15 @@ func setSessionCookie(w http.ResponseWriter, hash string, expires time.Time) {
 func deleteSessionCookie(w http.ResponseWriter) {
 	c := http.Cookie{Name: "SessionID", Value: "", Expires: time.Unix(0, 0)}
 	http.SetCookie(w, &c)
+}
+
+func sessionIDFromCookie(req *http.Request) string {
+	cookie, err := req.Cookie("SessionID")
+	if err != nil {
+		return ""
+	}
+
+	return cookie.Value
 }
 
 func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, error) {

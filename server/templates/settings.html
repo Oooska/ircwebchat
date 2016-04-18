@@ -5,15 +5,14 @@
   </head>    
   <body>
       {{template "_header.html" .Username}}
-      Name: {{.Name}}
       <h3>Server:</h3>
       <form action="/settings" method="POST">
           Name: <input type="text" name="Name" value="{{.Name}}"/> <br/>
           Server Address: <input type="text" name="Address" value="{{.Address}}"/> Port: <input type="text" name="Port" value="{{.Port}}" /> <input type="checkbox" name="SSL" checked="{{.SSL}}"/>Use SSL<br/>
           
-          Nick: <input type="text" Name="Nick" value="{{.User.Nick}}"/>  Password: <input type="password" name="password" value="{{.User.Password}}"/> (leave blank if unregistered)
+          Nick: <input type="text" Name="Nick" value="{{.User.Nick}}"/>  Password: <input type="password" name="Password" value="{{.User.Password}}"/> (leave blank if unregistered)
           <br/>
-          Alt Nick: <input type="text" name="AltNick" value="{{.AltUser.Nick}}"/> Password: <input type="Password" name="AltPass" value="{{.AltUser.Password}}" /> (leave blank if unregistered)
+          Alt Nick: <input type="text" name="AltNick" value="{{.AltUser.Nick}}"/> Password: <input type="Password" name="AltPassword" value="{{.AltUser.Password}}" /> (leave blank if unregistered)
           <br/>
           <button type="submit">Save</button>
       </form>

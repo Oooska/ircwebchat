@@ -13,8 +13,7 @@ type indexController struct {
 }
 
 func (ic indexController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	log.Print("Recieved request for /... in indexController")
-	if req.Method == "GET" && req.URL.Path == "/" {
+	if req.URL.Path == "/" {
 		ic.get(w, req)
 	} else {
 		w.WriteHeader(404)

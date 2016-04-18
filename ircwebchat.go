@@ -24,6 +24,7 @@ TODO: Currently only sends data to clients. Need to listen to IRCCLients and pas
 var templates *template.Template
 var modelAccounts = models.NewAccounts()
 var modelSessions = models.NewSessions()
+var modelSettings = models.NewSettingsManager()
 
 //Register mounts an entry point at / on the supplied http mux.
 //If no mux is supplied, it will be mounted by the default http.Handler
@@ -90,7 +91,7 @@ func Register(t *template.Template, mux *http.ServeMux) {
 	addUser(user2)
 
 	log.Print("About to start user sessions...")
-	go startUserSessions()
+	//go startUserSessions()
 	log.Print("User sessions started.")
 }
 

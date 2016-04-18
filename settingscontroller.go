@@ -31,6 +31,7 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
+	mdlSettings, err := modelSettings.Settings(mdlAcct)
 
 	server := viewmodels.GetServer()
 	server.Title = "IRC Web Chat - Settings"
@@ -49,10 +50,20 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		server.AltUser.Nick = req.FormValue("AltNick")
 		server.AltUser.Password = req.FormValue("AltPassword")
 
+		//TODO: Validate form
+		modelSettings.UpdateSettings(mdlAcct, server.Name, server.Address, server.Port, server.SSL)
+		modelSettings.UpdateLogin(mdlAcct, server.User.Nick, server.User.Password)
+		modelSettings.UpdateAltLogin(mdlAcct, server.AltUser.Nick, server.AltUser.Password)
+	} else if err == nil { //Grab previously saved info
+		server.Name = mdlSettings.Name()
+		server.Address = mdlSettings.Address()
+		server.Port = mdlSettings.Port()
+		server.SSL = mdlSettings.SSL()
+		server.User.Nick = mdlSettings.Login().Nick
+		server.User.Password = mdlSettings.Login().Password
+		server.AltUser.Nick = mdlSettings.AltLogin().Nick
+		server.AltUser.Password = mdlSettings.AltLogin().Password
 	}
-
-	log.Printf("Serving up /settings with server: %+v", server)
-
 	w.Header().Add("Content-Header", "text/html")
 	sc.template.Execute(w, server)
 }
