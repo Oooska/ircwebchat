@@ -55,8 +55,7 @@ func Register(t *template.Template, mux *http.ServeMux) {
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
 	log.Print("About to start user sessions...")
-	//go startUserSessions()
-	chatManager.StartSessions(modelAccounts, modelSettings)
+	//chatManager.StartSessions(modelAccounts, modelSettings)
 	log.Print("User sessions started.")
 }
 
@@ -84,15 +83,4 @@ func serveResource(w http.ResponseWriter, req *http.Request) {
 	w.Header().Add("Content-Type", contentType)
 
 	br.WriteTo(w)
-}
-
-func templateHandler(w http.ResponseWriter, req *http.Request) {
-	requestedFile := req.URL.Path[1:]
-	template := templates.Lookup(requestedFile + ".html")
-
-	if template != nil {
-		template.Execute(w, nil)
-	} else {
-		w.WriteHeader(404)
-	}
 }

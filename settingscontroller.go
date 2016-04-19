@@ -33,37 +33,42 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 	}
 	mdlSettings, err := modelSettings.Settings(mdlAcct)
 
-	server := viewmodels.GetServer()
-	server.Title = "IRC Web Chat - Settings"
-	server.Username = mdlAcct.Username()
+	settings := viewmodels.GetSettings()
+	settings.Title = "IRC Web Chat - Settings"
+	settings.Username = mdlAcct.Username()
 
 	if req.Method == "POST" {
-		server.Name = req.FormValue("Name")
-		server.Address = req.FormValue("Address")
-		port, _ := strconv.Atoi(req.FormValue("Port"))
-		server.Port = port
-		log.Printf("ssl form value: %s", req.FormValue("SSL"))
-		ssl, _ := strconv.ParseBool(req.FormValue("SSL"))
-		server.SSL = ssl
-		server.User.Nick = req.FormValue("Nick")
-		server.User.Password = req.FormValue("Password")
-		server.AltUser.Nick = req.FormValue("AltNick")
-		server.AltUser.Password = req.FormValue("AltPassword")
-
+		settings.Enabled = parseCheckbox("Enabled", req)
+		settings.Name = req.FormValue("Name")
+		settings.Address = req.FormValue("Address")
+		settings.Port, _ = strconv.Atoi(req.FormValue("Port"))
+		settings.SSL = parseCheckbox("SSL", req)
+		settings.User.Nick = req.FormValue("Nick")
+		settings.User.Password = req.FormValue("Password")
+		settings.AltUser.Nick = req.FormValue("AltNick")
+		settings.AltUser.Password = req.FormValue("AltPassword")
+		log.Printf("Posted settings: %+v", settings)
 		//TODO: Validate form
-		modelSettings.UpdateSettings(mdlAcct, server.Name, server.Address, server.Port, server.SSL)
-		modelSettings.UpdateLogin(mdlAcct, server.User.Nick, server.User.Password)
-		modelSettings.UpdateAltLogin(mdlAcct, server.AltUser.Nick, server.AltUser.Password)
+		modelSettings.UpdateSettings(mdlAcct, settings.Enabled, settings.Name, settings.Address, settings.Port, settings.SSL)
+		modelSettings.UpdateLogin(mdlAcct, settings.User.Nick, settings.User.Password)
+		modelSettings.UpdateAltLogin(mdlAcct, settings.AltUser.Nick, settings.AltUser.Password)
 	} else if err == nil { //Grab previously saved info
-		server.Name = mdlSettings.Name()
-		server.Address = mdlSettings.Address()
-		server.Port = mdlSettings.Port()
-		server.SSL = mdlSettings.SSL()
-		server.User.Nick = mdlSettings.Login().Nick
-		server.User.Password = mdlSettings.Login().Password
-		server.AltUser.Nick = mdlSettings.AltLogin().Nick
-		server.AltUser.Password = mdlSettings.AltLogin().Password
+		settings.Enabled = mdlSettings.Enabled()
+		settings.Name = mdlSettings.Name()
+		settings.Address = mdlSettings.Address()
+		settings.Port = mdlSettings.Port()
+		settings.SSL = mdlSettings.SSL()
+		settings.User.Nick = mdlSettings.Login().Nick
+		settings.User.Password = mdlSettings.Login().Password
+		settings.AltUser.Nick = mdlSettings.AltLogin().Nick
+		settings.AltUser.Password = mdlSettings.AltLogin().Password
 	}
 	w.Header().Add("Content-Header", "text/html")
-	sc.template.Execute(w, server)
+	sc.template.Execute(w, settings)
+}
+
+func parseCheckbox(field string, req *http.Request) bool {
+	val := req.FormValue(field)
+	log.Printf("form['%s']=%s (evaluates to %v)", field, val, val == "on")
+	return val == "on"
 }

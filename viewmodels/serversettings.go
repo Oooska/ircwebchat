@@ -5,8 +5,9 @@ package viewmodels
 //	Servers []Server
 //}
 
-type Server struct {
+type Settings struct {
 	Site
+	Enabled bool
 	Name    string
 	Address string
 	Port    int
@@ -20,6 +21,6 @@ type IRCUser struct {
 	Password string
 }
 
-func GetServer() Server {
-	return Server{}
+func GetSettings() Settings {
+	return Settings{}
 }

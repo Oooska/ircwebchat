@@ -12,7 +12,9 @@
         </div>
     {{else}}
         <div>
-            Welcome {{.}} 
+            Welcome {{.}}! 
+            <a href="/chat">Chat</a> | 
+            <a href="/settings">Settings</a> | 
             <form action="/logout" method="POST"><button type="submit">Logout</button></form>
         </div>
     {{end}}

@@ -7,6 +7,7 @@ func NewSettingsManager() SettingsManager {
 
 	//Dummy data
 	sm.settings["goirctest"] = settings{
+		enabled:  true,
 		name:     "Freenode",
 		address:  "irc.freenode.net",
 		ssl:      false,
@@ -16,6 +17,7 @@ func NewSettingsManager() SettingsManager {
 	}
 
 	sm.settings["goirctest2"] = settings{
+		enabled:  false,
 		name:     "Freenode",
 		address:  "irc.freenode.net",
 		ssl:      false,
@@ -30,7 +32,7 @@ func NewSettingsManager() SettingsManager {
 //SettingsManager keeps track of settings for each account
 type SettingsManager interface {
 	Settings(Account) (Settings, error)
-	UpdateSettings(acct Account, name, address string, port int, ssl bool) Settings
+	UpdateSettings(acct Account, enabled bool, name, address string, port int, ssl bool) Settings
 	UpdateLogin(acct Account, nick, password string) Settings
 	UpdateAltLogin(acct Account, nick, password string) Settings
 }
@@ -47,8 +49,8 @@ func (sets settingsMgr) Settings(a Account) (Settings, error) {
 	return s, nil
 }
 
-func (sets settingsMgr) UpdateSettings(a Account, name, address string, port int, ssl bool) Settings {
-	s := settings{name: name, address: address, ssl: ssl, port: port}
+func (sets settingsMgr) UpdateSettings(a Account, enabled bool, name, address string, port int, ssl bool) Settings {
+	s := settings{enabled: enabled, name: name, address: address, ssl: ssl, port: port}
 	sets.settings[a.Username()] = s
 	return s
 }
@@ -73,6 +75,7 @@ func (sets settingsMgr) UpdateAltLogin(a Account, nick, password string) Setting
 
 //Settings represents the information required to connect to an IRC server
 type Settings interface {
+	Enabled() bool
 	Name() string
 	Address() string
 	Port() int
@@ -88,12 +91,17 @@ type IRCLogin struct {
 }
 
 type settings struct {
+	enabled  bool
 	name     string
 	address  string
 	port     int
 	ssl      bool
 	login    IRCLogin
 	altlogin IRCLogin
+}
+
+func (s settings) Enabled() bool {
+	return s.enabled
 }
 
 func (s settings) Name() string {

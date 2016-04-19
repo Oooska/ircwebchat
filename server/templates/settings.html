@@ -7,13 +7,16 @@
       {{template "_header.html" .Username}}
       <h3>Server:</h3>
       <form action="/settings" method="POST">
-          Name: <input type="text" name="Name" value="{{.Name}}"/> <br/>
-          Server Address: <input type="text" name="Address" value="{{.Address}}"/> Port: <input type="text" name="Port" value="{{.Port}}" /> <input type="checkbox" name="SSL" checked="{{.SSL}}"/>Use SSL<br/>
-          
-          Nick: <input type="text" Name="Nick" value="{{.User.Nick}}"/>  Password: <input type="password" name="Password" value="{{.User.Password}}"/> (leave blank if unregistered)
-          <br/>
-          Alt Nick: <input type="text" name="AltNick" value="{{.AltUser.Nick}}"/> Password: <input type="Password" name="AltPassword" value="{{.AltUser.Password}}" /> (leave blank if unregistered)
-          <br/>
+          <div><label>Connect:</label><input type="checkbox" name="Enabled" {{if .Enabled}}checked{{end}} /></div>
+          <div><label>Name:</label><input type="text" name="Name" value="{{.Name}}"/></div>
+          <div>
+              <label>Server Address:</label><input type="text" name="Address" value="{{.Address}}"/> 
+              <label>Port:</label><input type="text" name="Port" value="{{.Port}}" /> 
+              <label>Use SSL</label><input type="checkbox" name="SSL" {{if .SSL}}checked{{end}}/>
+          </div>
+
+          <div><label>Nick:</label><input type="text" Name="Nick" value="{{.User.Nick}}"/>  <label>Password:</label> <input type="password" name="Password" value="{{.User.Password}}"/> (leave blank if unregistered)</div>
+          <div><label>Alt Nick:</label><input type="text" name="AltNick" value="{{.AltUser.Nick}}"/> <label>Password:</label> <input type="Password" name="AltPassword" value="{{.AltUser.Password}}" /> (leave blank if unregistered)</div>
           <button type="submit">Save</button>
       </form>
   </body>
