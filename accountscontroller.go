@@ -2,6 +2,7 @@ package ircwebchat
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"time"
 
@@ -130,5 +131,7 @@ func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, e
 	if err != nil { //No account associated with this session, delete
 		deleteSessionCookie(w)
 	}
+
+	log.Printf("Successfully returning account for sessID: %s", sessID)
 	return acct, err
 }

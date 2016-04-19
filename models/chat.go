@@ -12,6 +12,8 @@ import (
 type ChatManager interface {
 	SessionNotifier(Account) chan<- irc.Conn
 	StartSessions(Accounts, SettingsManager)
+	StartSession(Account, Settings) error
+	StopSession(Account)
 }
 
 func NewChatManager() ChatManager {
@@ -29,6 +31,14 @@ func (cm chatManager) SessionNotifier(acct Account) chan<- irc.Conn {
 func (cm chatManager) StartSessions(accts Accounts, settings SettingsManager) {
 	log.Printf("Starting sessions...")
 	startUserSessions(accts, settings)
+}
+
+func (cm chatManager) StartSession(acct Account, settings Settings) error {
+	return startSession(acct, settings)
+}
+
+func (cm chatManager) StopSession(acct Account) {
+	log.Printf("Called stop session. This still needs to be implemented.")
 }
 
 //ircManager takes the connection to the IRC server and then coordinates the
@@ -176,7 +186,7 @@ func startUserSessions(accts Accounts, settings SettingsManager) {
 	for _, acct := range accts.accountMap() {
 		settings, err := settings.Settings(acct)
 		log.Printf("Starting session for %s. Settings: %+v", acct.Username(), settings)
-		if err == nil {
+		if err == nil && settings.Enabled() {
 			err := startSession(acct, settings)
 			if err != nil {
 				log.Printf("Trouble starting session for %s: %s", acct.Username(), err.Error())

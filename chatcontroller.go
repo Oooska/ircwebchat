@@ -10,7 +10,6 @@ import (
 	"golang.org/x/net/websocket"
 
 	"github.com/oooska/irc"
-	"github.com/oooska/ircwebchat/models"
 	"github.com/oooska/ircwebchat/viewmodels"
 )
 
@@ -52,31 +51,18 @@ func webSocketHandler(ws *websocket.Conn) {
 	defer log.Println("socketHandler exiting")
 	client := irc.NewConnectionWrapper(ws)
 
-	//Authenticate websocket:
-	var user models.Account
-	var err error
-	for user == nil {
-		client.Write(irc.NewMessage("CLIENT-MESSAGE :Enter a username."))
-		msg, err := client.Read()
-		if err != nil {
-			return
-		}
-		username := strings.TrimSpace(msg.String())
-
-		client.Write(irc.NewMessage("CLIENT-MESSAGE :Enter a password."))
-		msg, err = client.Read()
-		if err != nil {
-			return
-		}
-		password := strings.TrimSpace(msg.String())
-		user, err = modelAccounts.Authenticate(username, password)
-
-		if err != nil {
-			client.Write(irc.NewMessage("CLIENT-MESSAGE :Invalid username/password."))
-		} else {
-			client.Write(irc.NewMessage("CLIENT-MESSAGE :Successfully logged in."))
-		}
-
+	//Client should send its sessionID as first message
+	sessionID, err := client.Read()
+	if err != nil {
+		log.Printf("Error reading from client: %s", err.Error())
+		return
+	}
+	log.Printf("Recieved session ID: '%s' over websocket", sessionID.Message)
+	user, err := modelSessions.Lookup(strings.TrimSpace(sessionID.Message))
+	if err != nil {
+		client.Write(irc.NewMessage("Closing connection. Error: " + err.Error()))
+		client.Close()
+		return
 	}
 
 	newclients := chatManager.SessionNotifier(user)

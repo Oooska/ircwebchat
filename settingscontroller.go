@@ -49,9 +49,20 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		settings.AltUser.Password = req.FormValue("AltPassword")
 		log.Printf("Posted settings: %+v", settings)
 		//TODO: Validate form
+
 		modelSettings.UpdateSettings(mdlAcct, settings.Enabled, settings.Name, settings.Address, settings.Port, settings.SSL)
 		modelSettings.UpdateLogin(mdlAcct, settings.User.Nick, settings.User.Password)
-		modelSettings.UpdateAltLogin(mdlAcct, settings.AltUser.Nick, settings.AltUser.Password)
+		s := modelSettings.UpdateAltLogin(mdlAcct, settings.AltUser.Nick, settings.AltUser.Password)
+
+		//Check to see if we need to start the client (enable toggled)
+		if s.Enabled() && (err == nil || (err != nil && !mdlSettings.Enabled())) {
+			log.Printf("This is where I should send some kind of signal to tell the chatmanager to connect...")
+			chatManager.StartSession(mdlAcct, s)
+		} else if err == nil && mdlSettings.Enabled() && !s.Enabled() {
+			log.Printf("This is where I should send some kind of signal to tell the chatmanager to disconnect...")
+			chatManager.StopSession(mdlAcct)
+		}
+
 	} else if err == nil { //Grab previously saved info
 		settings.Enabled = mdlSettings.Enabled()
 		settings.Name = mdlSettings.Name()

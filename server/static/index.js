@@ -185,6 +185,13 @@ var IRCStore = {
 		websocket = new WebSocket("ws://" + wsaddr);
 		websocket.onmessage = this._recieveMessage;
 		websocket.onclose = this._socketClose;
+
+		//Send sessionid over ws:
+		websocket.onopen = function () {
+			var sessionID = getCookie("SessionID");
+			console.log("Session ID: " + sessionID);
+			websocket.send(sessionID + "\r\n");
+		};
 	},
 
 	sendMessage: function (msg) {
@@ -297,14 +304,18 @@ var Rooms = {
 			if (pMessage.args[3]) {
 				var users = pMessage.args[3].split(" ");
 				var roomObj = this.getRoom(room);
-				if (!roomObj.updating_353) {
-					//Server is providing a fresh list of users, clear out old list
-					roomObj.updating_353 = true;
-					this.clearUsers(room);
-				}
 
-				for (var k = 0; k < users.length; k++) {
-					this.addUser(room, users[k]);
+				//TODO: roomObj should be created if its u ndefined
+				if (roomObj !== undefined) {
+					if (roomObj.updating_353 === undefined || !roomObj.updating_353) {
+						//Server is providing a fresh list of users, clear out old list
+						roomObj.updating_353 = true;
+						this.clearUsers(room);
+					}
+
+					for (var k = 0; k < users.length; k++) {
+						this.addUser(room, users[k]);
+					}
 				}
 			}
 		} else if (pMessage.command == "366") {
@@ -457,6 +468,12 @@ function parsePrefix(prefix) {
 		host: prefixarray[3]
 	};
 	return null;
+}
+
+function getCookie(name) {
+	var value = "; " + document.cookie;
+	var parts = value.split("; " + name + "=");
+	if (parts.length == 2) return parts.pop().split(";").shift();
 }
 
 module.exports = IRCStore;

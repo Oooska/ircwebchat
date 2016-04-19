@@ -22,5 +22,5 @@ type IRCUser struct {
 }
 
 func GetSettings() Settings {
-	return Settings{}
+	return Settings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
 }
