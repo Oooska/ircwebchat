@@ -1,15 +1,14 @@
 package ircwebchat
 
 import (
+	"bufio"
 	"html/template"
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"golang.org/x/net/websocket"
 
-	"github.com/oooska/irc"
 	"github.com/oooska/ircwebchat/viewmodels"
 )
 
@@ -49,46 +48,23 @@ func webSocketHandler(ws *websocket.Conn) {
 	//Notify the irc manager of a new websocket
 	log.Println("socketHandler starting")
 	defer log.Println("socketHandler exiting")
-	client := irc.NewConnectionWrapper(ws)
 
 	//Client should send its sessionID as first message
-	sessionID, err := client.Read()
+	br := bufio.NewReader(ws)
+	sessionID, err := br.ReadString('\n')
 	if err != nil {
 		log.Printf("Error reading from client: %s", err.Error())
 		return
 	}
-	log.Printf("Recieved session ID: '%s' over websocket", sessionID.Message)
-	user, err := modelSessions.Lookup(strings.TrimSpace(sessionID.Message))
+	log.Printf("Recieved session ID: '%s' over websocket", sessionID)
+	user, err := modelSessions.Lookup(strings.TrimSpace(sessionID))
 	if err != nil {
-		client.Write(irc.NewMessage("Closing connection. Error: " + err.Error()))
-		client.Close()
+		ws.Write([]byte("Closing connection. Error: " + err.Error()))
+		ws.Close()
 		return
 	}
 
-	newclients := chatManager.SessionNotifier(user)
-	if newclients == nil {
-		client.Write(irc.NewMessage("Unable to find session. Closing..."))
-		log.Printf("Unable to find session for %s", user.Username())
-		return
-	}
-
-	settings, err := modelSettings.Settings(user)
-	if err != nil {
-		client.Write(irc.NewMessage("Unable to find valid settings. Closing..."))
-		log.Printf("Unable to find settings for %s", user.Username())
-		return
-	}
-
-	//Notify the client what the user's current nick is
-	client.Write(irc.NickMessage(settings.Login().Nick))
-	newclients <- client
-
-	for {
-		if ws.IsServerConn() {
-			time.Sleep(100 * time.Millisecond)
-		} else {
-			log.Println("socketHandler returning after IsServerConn returned false")
-			return
-		}
-	}
+	err = chatManager.JoinChat(user, sessionID, ws)
+	ws.Write([]byte("Error: " + err.Error()))
+	ws.Close()
 }

@@ -57,10 +57,10 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		//Check to see if we need to start the client (enable toggled)
 		if s.Enabled() && (err == nil || (err != nil && !mdlSettings.Enabled())) {
 			log.Printf("This is where I should send some kind of signal to tell the chatmanager to connect...")
-			chatManager.StartSession(mdlAcct, s)
+			chatManager.StartChat(mdlAcct, s)
 		} else if err == nil && mdlSettings.Enabled() && !s.Enabled() {
 			log.Printf("This is where I should send some kind of signal to tell the chatmanager to disconnect...")
-			chatManager.StopSession(mdlAcct)
+			chatManager.StopChat(mdlAcct)
 		}
 
 	} else if err == nil { //Grab previously saved info
