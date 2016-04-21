@@ -19,18 +19,19 @@ type ChatManager interface {
 	JoinChat(acct Account, sessionID string, webclient net.Conn) error
 }
 
+//NewChatManager returns a new chat manager to manage communication
+//between IRC servers and webclients
 func NewChatManager() ChatManager {
-	return chatManager{chatmap: make(map[string]Chat)}
+	return chatManager{chatmap: make(map[string]chat)}
 }
 
-//Empty struct - TODO: Make this a non-empty struct, needs clientListenerMap
-//and other pertinent data
 type chatManager struct {
-	chatmap map[string]Chat
+	chatmap map[string]chat
 }
 
+//StarChats checks all accounts in the system and connects to the IRC server
+//if the account is enabled.
 func (cm chatManager) StartChats(accts Accounts, settings SettingsManager) {
-	log.Printf("Starting chats...")
 	for _, acct := range accts.accountMap() {
 		settings, err := settings.Settings(acct)
 		if err == nil && settings.Enabled() {
@@ -44,6 +45,7 @@ func (cm chatManager) StartChats(accts Accounts, settings SettingsManager) {
 	}
 }
 
+//StartChat creates a connection to the IRC server for the specified user
 func (cm chatManager) StartChat(acct Account, settings Settings) error {
 	chat, ok := cm.chatmap[acct.Username()]
 	if ok && chat.Active() {
@@ -54,6 +56,7 @@ func (cm chatManager) StartChat(acct Account, settings Settings) error {
 	return chat.Start()
 }
 
+//StopChat ends the connection to the IRC server for the specified user
 func (cm chatManager) StopChat(acct Account) {
 	chat, ok := cm.chatmap[acct.Username()]
 	if ok && chat.Active() {
@@ -61,12 +64,10 @@ func (cm chatManager) StopChat(acct Account) {
 	}
 }
 
-//joinchat
+//JoinChat connects a webclient to the Chat if it is active
 func (cm chatManager) JoinChat(acct Account, sessionID string, webclient net.Conn) error {
-	log.Printf("Trying to join chat for %s", acct.Username())
 	c, ok := cm.chatmap[acct.Username()]
 	if !ok {
-		log.Printf("No chat found for %s", acct.Username())
 		return errors.New("Unable to find chat to join")
 	}
 	log.Printf("Chat found for %s", acct.Username())
@@ -74,8 +75,8 @@ func (cm chatManager) JoinChat(acct Account, sessionID string, webclient net.Con
 	return err
 }
 
-func newChat(acct Account, settings Settings) Chat {
-	chat := &chat{
+func newChat(acct Account, settings Settings) chat {
+	chat := &ircchat{
 		account:        acct,
 		settings:       settings,
 		quit:           make(chan bool),
@@ -89,14 +90,15 @@ func newChat(acct Account, settings Settings) Chat {
 	return chat
 }
 
-type Chat interface {
+//chat manages the connection between the IRC server and the web clients
+type chat interface {
 	Start() error
 	Stop()
 	Join(sessionID string, webclient irc.Conn) error
 	Active() bool
 }
 
-type chat struct {
+type ircchat struct {
 	account Account
 	client  irc.Client //Gets set by Start()
 
@@ -110,12 +112,14 @@ type chat struct {
 	webClientsLock *sync.RWMutex
 }
 
+//clientMessage is a Message that was sent from a specific webclient
 type clientMessage struct {
 	SessionID string
 	Message   irc.Message
 }
 
-func (c *chat) Start() error {
+//Start connects to the IRC server, authenticates, and then starts a goroutine to manage the chat
+func (c *ircchat) Start() error {
 	if !c.running {
 		log.Printf("Starting chat for %s...", c.account.Username())
 		client, err := irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address(), c.settings.Port()), c.settings.SSL())
@@ -124,8 +128,6 @@ func (c *chat) Start() error {
 			return err
 		}
 		c.client = client
-		log.Printf("Calling ircManager in its own goroutine...")
-
 		client.Write(irc.UserMessage(c.account.Username(), "ircwebchathost", "somewhere", "quack"))
 		client.Write(irc.NickMessage(c.settings.Login().Nick))
 
@@ -136,69 +138,66 @@ func (c *chat) Start() error {
 	return nil
 }
 
-func (c *chat) Stop() {
+//Stop causes the IRC server to disconnect, dropping any clients
+func (c *ircchat) Stop() {
 	if c.running {
 		close(c.quit)
 		c.running = false
 	}
 }
 
-//Coordinates webclient
-//Blocks until webclient closes or chat ends
-func (c chat) Join(sessionID string, webclient irc.Conn) error {
+//Join adds a webclient to the list of active clients. It blocks until webclient socket closes or chat ends
+func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 	log.Printf("User %s /w session ID %s is joining chat.", c.account.Username(), sessionID)
 
 	if c.Active() {
 		webclient.Write(irc.NickMessage(c.settings.Login().Nick))
-		//TODO: Send rooms, users, and logs
+		//TODO: Send rooms, users, and logs to webclient
 
 		//Register as a listener
 		c.registerClient(sessionID, webclient)
-
-		log.Printf("Register webclient %s (%s) with chat. Reading from websocket...", c.account.Username(), sessionID)
-		var err error
-		for err == nil {
+		for {
 			select {
 			case <-c.quit:
 				fmt.Println("Exiting ircClientListener")
-				err = errors.New("IRC Session has ended")
+				return errors.New("IRC Session has ended")
 			default:
 				msg, err := webclient.Read()
 				if err != nil {
 					log.Printf("Error reading from webclient %s (%s): %s", c.account.Username(), sessionID, err.Error())
-					break
+					c.unregisterClient(sessionID)
+					return err
 				}
-				log.Printf("Recieved message from %s (%s): %s", c.account.Username(), sessionID, msg.Message)
 				c.toServer <- clientMessage{SessionID: sessionID, Message: msg}
 			}
 		}
-		//Error has occured, removed from list of connected clients
-		c.unregisterClient(sessionID)
-		return err
 	}
-	log.Print("Oh, nevermind... not active apparently?!")
 	return errors.New("The chat session is not active or enabled. Check settings")
 }
 
-func (c chat) Active() bool {
+//Active returns true if the chat is connected and running
+func (c ircchat) Active() bool {
 	return c.running
 }
 
-func (c chat) registerClient(sessionID string, webclient irc.Conn) {
+//registerClient registers the webclient to recieve messages from the irc server
+func (c ircchat) registerClient(sessionID string, webclient irc.Conn) {
 	c.webClientsLock.Lock()
 	c.webclients[sessionID] = webclient
 	c.webClientsLock.Unlock()
 }
 
-func (c chat) unregisterClient(sessionID string) {
+//unregisterClient removes the webclient from recieving messages from the irc server
+func (c ircchat) unregisterClient(sessionID string) {
 	c.webClientsLock.Lock()
 	delete(c.webclients, sessionID)
 	c.webClientsLock.Unlock()
 }
 
 //ircManager takes the connection to the IRC server and then coordinates the
-//communication between the irc server, and the active IRCClients
-func ircManager(c chat) { //ircConn irc.Conn, newClients chan irc.Conn
+//communication between the irc server, and the connected webclients
+//It it will block until the connection to the irc server is closed, or Stop() is called
+func ircManager(c ircchat) { //ircConn irc.Conn, newClients chan irc.Conn
 	fmt.Println("*** Entering ircManager ***")
 	defer fmt.Println("*** Leaving ircManager ***")
 
@@ -212,7 +211,7 @@ func ircManager(c chat) { //ircConn irc.Conn, newClients chan irc.Conn
 		select {
 		case msg := <-fromServer: //Recieved message from irc server
 			//Send it to all clients
-			log.Printf("%s: %s", c.account.Username(), msg.Message)
+			//log.Printf("%s: %s", c.account.Username(), msg.Message)
 			c.webClientsLock.RLock()
 			for _, client := range c.webclients {
 				err := client.Write(msg)
@@ -222,11 +221,11 @@ func ircManager(c chat) { //ircConn irc.Conn, newClients chan irc.Conn
 			}
 			c.webClientsLock.RUnlock()
 
-		//Received a message from the server
+		//Received a message from a webclient
 		case msg := <-c.toServer:
 			err := c.client.Write(msg.Message)
 			if err != nil {
-				fmt.Println("Error writing to server: ", err)
+				fmt.Printf("Error writing to server: %s", err.Error())
 			}
 
 			c.webClientsLock.RLock()
@@ -244,22 +243,19 @@ func ircManager(c chat) { //ircConn irc.Conn, newClients chan irc.Conn
 			c.webClientsLock.RUnlock()
 		case err := <-errChan:
 			log.Printf("Recieved error from serverListerner: %s", err.Error())
+			close(c.quit)
 		case <-c.quit:
 			log.Printf("Stopping the chat. Disconnecting client.")
-			c.client.Close()
+			c.Stop()
 			return
 		}
 	}
-	//quitChan <- true
 }
 
-//ircServerListener indefinitely listens for messages from the IRC server.
+//serverListener listens for messages from the IRC server.
 //When one is receives, it sends the message into the msg channel.
 func serverListener(ircConn irc.Conn, msgChan chan<- irc.Message, errChan chan<- error, quitChan <-chan bool) {
-	fmt.Println("*** Entering server listener ***")
-	defer fmt.Println("*** Leaving server listener ***")
 	for {
-
 		select {
 		case <-quitChan:
 			return

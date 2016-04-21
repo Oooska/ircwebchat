@@ -39,9 +39,8 @@ func (cc chatController) get(w http.ResponseWriter, req *http.Request) {
 }
 
 /*
-The socketHandler for the websocket connection.
-Accepts the websocket, hands it off through the socketChan, and
-waits until the socket is closed before exiting the function.
+webSocketHandler reads the sessionID from the websocket,
+identifies an account and joins an ongoing chat session if one exists
 //TODO: Actually manage disconnections properly.
 */
 func webSocketHandler(ws *websocket.Conn) {
@@ -58,14 +57,14 @@ func webSocketHandler(ws *websocket.Conn) {
 		return
 	}
 	log.Printf("Recieved session ID: '%s' over websocket", sessionID)
-	user, err := modelSessions.Lookup(sessionID)
+	acct, err := modelSessions.Lookup(sessionID)
 	if err != nil {
 		ws.Write([]byte("Closing connection. Unable to find user: " + err.Error()))
 		ws.Close()
 		return
 	}
 
-	err = chatManager.JoinChat(user, sessionID, ws)
+	err = chatManager.JoinChat(acct, sessionID, ws)
 	ws.Write([]byte("Error: " + err.Error()))
 	ws.Close()
 }

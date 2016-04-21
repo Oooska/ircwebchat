@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+//NewAccounts returns an Accounts
 func NewAccounts() Accounts {
 	accts := accounts{acctmap: make(map[string]Account)}
 
@@ -31,6 +32,7 @@ func (accts accounts) accountMap() map[string]Account {
 	return accts.acctmap
 }
 
+//Account returns the account with the specified username, or an error if none is found
 func (accs accounts) Account(username string) (Account, error) {
 	acct, ok := accs.acctmap[username]
 	if !ok {
@@ -42,6 +44,8 @@ func (accs accounts) Account(username string) (Account, error) {
 	return acct, nil
 }
 
+//Authenticate returns an account if the specified username and password are valid,
+//or an error if the login details are wrong or the account is no longer active.
 func (accs accounts) Authenticate(username, pass string) (Account, error) {
 	acct, ok := accs.acctmap[username]
 	if !ok {
@@ -57,6 +61,7 @@ func (accs accounts) Authenticate(username, pass string) (Account, error) {
 	return acct, nil
 }
 
+//Register creates a new account with the specified information.
 //TODO: Proper validation of values
 func (accs accounts) Register(username, password, email string) (Account, error) {
 	acct, ok := accs.acctmap[username]
@@ -94,18 +99,22 @@ type account struct {
 	active   bool
 }
 
+//Returns the username of the account
 func (a account) Username() string {
 	return a.username
 }
 
+//Returns the password of the account
 func (a account) Password() string {
 	return a.password
 }
 
+//Returns the email of the account
 func (a account) Email() string {
 	return a.email
 }
 
+//Returns true if the account is active.
 func (a account) Active() bool {
 	return a.active
 }
