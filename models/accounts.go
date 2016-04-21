@@ -10,7 +10,8 @@ func NewAccounts() Accounts {
 
 	//dummy data
 	accts.Register("goirctest", "password", "a@b.c")
-	accts.Register("goirctest2", "password", "a@b.c")
+
+	//accts.Register("goirctest2", "password", "a@b.c")
 	return accts
 }
 

@@ -52,14 +52,15 @@ func webSocketHandler(ws *websocket.Conn) {
 	//Client should send its sessionID as first message
 	br := bufio.NewReader(ws)
 	sessionID, err := br.ReadString('\n')
+	sessionID = strings.TrimSpace(sessionID)
 	if err != nil {
 		log.Printf("Error reading from client: %s", err.Error())
 		return
 	}
 	log.Printf("Recieved session ID: '%s' over websocket", sessionID)
-	user, err := modelSessions.Lookup(strings.TrimSpace(sessionID))
+	user, err := modelSessions.Lookup(sessionID)
 	if err != nil {
-		ws.Write([]byte("Closing connection. Error: " + err.Error()))
+		ws.Write([]byte("Closing connection. Unable to find user: " + err.Error()))
 		ws.Close()
 		return
 	}

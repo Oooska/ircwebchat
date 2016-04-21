@@ -54,9 +54,9 @@ func Register(t *template.Template, mux *http.ServeMux) {
 	mux.Handle("/static/", http.HandlerFunc(serveResource))
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
-	log.Print("About to start user sessions...")
-	//chatManager.StartSessions(modelAccounts, modelSettings)
-	log.Print("User sessions started.")
+	//log.Print("About to start user sessions...")
+	//chatManager.StartChats(modelAccounts, modelSettings)
+	log.Print("User sessions not started.")
 }
 
 func serveResource(w http.ResponseWriter, req *http.Request) {

@@ -16,7 +16,7 @@ func NewSettingsManager() SettingsManager {
 		altlogin: IRCLogin{Nick: "goirctest_", Password: ""},
 	}
 
-	sm.settings["goirctest2"] = settings{
+	/*sm.settings["goirctest2"] = settings{
 		enabled:  false,
 		name:     "Freenode",
 		address:  "irc.freenode.net",
@@ -24,7 +24,7 @@ func NewSettingsManager() SettingsManager {
 		port:     6667,
 		login:    IRCLogin{Nick: "goirctest2", Password: ""},
 		altlogin: IRCLogin{Nick: "goirctest2_", Password: ""},
-	}
+	}*/
 
 	return sm
 }

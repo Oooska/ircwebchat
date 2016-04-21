@@ -13,6 +13,7 @@ import (
 //Starts a basic http server with the ircwebchat Handler registered
 func main() {
 	//mux := http.NewServeMux()
+	log.SetFlags(log.Lshortfile | log.Ltime)
 	t := populateTemplates()
 	ircwebchat.Register(t, nil) //mux)
 	go log.Fatal(http.ListenAndServe(":8080", nil))
