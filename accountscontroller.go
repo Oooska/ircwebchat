@@ -130,8 +130,9 @@ func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, e
 	acct, err := modelSessions.Lookup(sessID)
 	if err != nil { //No account associated with this session, delete
 		deleteSessionCookie(w)
+		return nil, err
 	}
 
-	log.Printf("Successfully returning account for sessID: %s", sessID)
+	log.Printf("Successfully returning account %s for sessID: %s", acct.Username(), sessID)
 	return acct, err
 }
