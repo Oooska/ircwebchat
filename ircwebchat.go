@@ -13,12 +13,10 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-/* ircwebchat provides a web-basede IRC client. A user can share the same IRC
+/* ircwebchat provides a web-based IRC client. A user can share the same IRC
 session across multiple browsers.
 
 Still in early development stages.
-
-TODO: Currently only sends data to clients. Need to listen to IRCCLients and pass info on to other clients and server
 */
 
 var templates *template.Template
@@ -38,18 +36,18 @@ func Register(t *template.Template, mux *http.ServeMux) {
 	log.Println("Register() called...")
 	templates = t
 
-	ic := indexController{template: templates.Lookup("index.html")}
-	sc := settingsController{template: templates.Lookup("settings.html")}
-	cc := chatController{template: templates.Lookup("chat.html")}
-	ac := accountsController{template: templates.Lookup("register.html")}
+	indexController := indexController{template: templates.Lookup("index.html")}
+	settingsController := settingsController{template: templates.Lookup("settings.html")}
+	chatController := chatController{template: templates.Lookup("chat.html")}
+	accountsController := accountsController{template: templates.Lookup("register.html")}
 
-	mux.Handle("/", ic)
-	mux.Handle("/settings", sc)
-	mux.Handle("/chat", cc)
+	mux.Handle("/", indexController)
+	mux.Handle("/settings", settingsController)
+	mux.Handle("/chat", chatController)
 
-	mux.Handle("/register", ac)
-	mux.Handle("/login", ac)
-	mux.Handle("/logout", ac)
+	mux.Handle("/register", accountsController)
+	mux.Handle("/login", accountsController)
+	mux.Handle("/logout", accountsController)
 
 	mux.Handle("/static/", http.HandlerFunc(serveResource))
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
@@ -81,6 +79,5 @@ func serveResource(w http.ResponseWriter, req *http.Request) {
 	defer f.Close()
 	br := bufio.NewReader(f)
 	w.Header().Add("Content-Type", contentType)
-
 	br.WriteTo(w)
 }

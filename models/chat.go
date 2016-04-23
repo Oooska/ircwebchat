@@ -120,22 +120,34 @@ type clientMessage struct {
 
 //Start connects to the IRC server, authenticates, and then starts a goroutine to manage the chat
 func (c *ircchat) Start() error {
+	var err error
 	if !c.running {
+		var client irc.Client
 		log.Printf("Starting chat for %s...", c.account.Username())
-		client, err := irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address(), c.settings.Port()), c.settings.SSL())
+		client, err = irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address(), c.settings.Port()), c.settings.SSL())
 		if err != nil {
 			log.Printf("Error starting chat for %s: %s", c.account.Username(), err.Error())
 			return err
 		}
 		c.client = client
-		client.Write(irc.UserMessage(c.account.Username(), "ircwebchathost", "somewhere", "quack"))
-		client.Write(irc.NickMessage(c.settings.Login().Nick))
+		err = client.Write(irc.UserMessage(c.account.Username(), "ircwebchathost", "somewhere", "quack"))
 
-		c.running = true
-		go ircManager(*c)
+		login := c.settings.Login()
+		if err == nil && login.Nick != "" {
+			err = client.Write(irc.NickMessage(c.settings.Login().Nick))
+			if err == nil && login.Password != "" {
+				err = client.Write(irc.PrivMessage("NickServ", "identify "+login.Password))
+			}
+		}
+
+		//TODO: Auto join rooms
+		if err == nil {
+			c.running = true
+			go ircManager(*c)
+		}
 
 	}
-	return nil
+	return err
 }
 
 //Stop causes the IRC server to disconnect, dropping any clients
@@ -152,7 +164,11 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 
 	if c.Active() {
 		webclient.Write(irc.NickMessage(c.settings.Login().Nick))
-		//TODO: Send rooms, users, and logs to webclient
+		//Send open channels to client
+		for _, ch := range c.client.ChannelNames() {
+			webclient.Write(irc.JoinMessage(ch))
+			//TODO: Send users, and logs to webclient
+		}
 
 		//Register as a listener
 		c.registerClient(sessionID, webclient)
