@@ -167,7 +167,10 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 		//Send open channels to client
 		for _, ch := range c.client.ChannelNames() {
 			webclient.Write(irc.JoinMessage(ch))
-			//TODO: Send users, and logs to webclient
+			for _, msg := range c.client.Messages(ch) {
+				webclient.Write(irc.NewMessage(msg))
+			}
+			//TODO: Send users
 		}
 
 		//Register as a listener
