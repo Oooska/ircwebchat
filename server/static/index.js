@@ -1,10 +1,130 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+var MessageList = React.createClass({
+	displayName: "MessageList",
+
+	propTypes: {
+		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
+	},
+
+	componentWillUpdate: function () {
+		//Determine if we're at the bottom of the message list
+		var node = ReactDOM.findDOMNode(this);
+		this.atBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
+	},
+
+	componentDidUpdate: function () {
+		if (this.atBottom) {
+			//If we're at the bottom, make sure we stay at the bottom
+			var node = ReactDOM.findDOMNode(this);
+			node.scrollTop = node.scrollHeight;
+		}
+	},
+
+	render: function () {
+		var rows = [];
+		for (var k = 0; k < this.props.messages.length; k++) rows.push(React.createElement("span", { key: k }, this.props.messages[k]));
+		return React.createElement("div", { className: "messagelist col-xs-10" }, rows);
+	}
+});
+
+module.exports = MessageList;
+
+},{}],2:[function(require,module,exports){
+var NickList = React.createClass({
+	displayName: "NickList",
+
+	propTypes: {
+		users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
+	},
+
+	render: function () {
+		var rows = [];
+		for (var k = 0; k < this.props.users.length; k++) rows.push(React.createElement("li", { className: "nick", key: k }, this.props.users[k]));
+		return React.createElement("div", { className: "nicklist" }, React.createElement("ul", { className: "col-xs-2" }, rows));
+	}
+});
+
+module.exports = NickList;
+
+},{}],3:[function(require,module,exports){
+var MessageList = require('./messageList');
+var NickList = require('./nickList');
+
+var Room = React.createClass({
+	displayName: 'Room',
+
+	propTypes: {
+		name: React.PropTypes.string.isRequired,
+		users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
+		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
+	},
+
+	render: function () {
+		var isRoom = this.props.name[0] == '#';
+		return React.createElement('div', { className: 'row' }, React.createElement(MessageList, { messages: this.props.messages }), isRoom ? React.createElement(NickList, { users: this.props.users }) : null);
+	}
+});
+
+module.exports = Room;
+
+},{"./messageList":1,"./nickList":2}],4:[function(require,module,exports){
+var Tabs = require('tabs.react');
+var Room = require('./room');
+
+var TabbedRooms = React.createClass({
+	displayName: 'TabbedRooms',
+
+	propTypes: {
+		rooms: React.PropTypes.arrayOf(React.PropTypes.shape({
+			name: React.PropTypes.string.isRequired,
+			users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
+			messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
+		})),
+
+		activeTab: React.PropTypes.string.isRequired,
+		onChange: React.PropTypes.func.isRequired
+	},
+
+	render: function () {
+		var self = this;
+		return React.createElement(Tabs, { active: this.props.activeTab, propName: 'name', onChange: this.props.onChange }, this.props.rooms.map(function (room) {
+			return React.createElement(Room, { name: room.name, users: room.users, messages: room.messages, key: room.name });
+		}));
+	}
+});
+
+module.exports = TabbedRooms;
+
+},{"./room":3,"tabs.react":8}],5:[function(require,module,exports){
+var Input = React.createClass({
+	displayName: "Input",
+
+	propTypes: {
+		onChange: React.PropTypes.func,
+		onSend: React.PropTypes.func,
+		value: React.PropTypes.string
+	},
+	render: function () {
+		return React.createElement("div", { className: "ircinput row" }, React.createElement("input", { type: "text", value: this.props.value, className: "col-xs-11",
+			onKeyDown: this.checkForSend, onChange: this.props.onChange }), React.createElement("button", { className: "col-xs-1", onClick: this.props.onSend }, "Send"));
+	},
+
+	checkForSend: function (event) {
+		if (event.key == 'Enter') this.props.onSend(event);
+	}
+});
+
+module.exports = Input;
+
+},{}],6:[function(require,module,exports){
 (function (global){
 //index.js
 var React = typeof window !== "undefined" ? window['React'] : typeof global !== "undefined" ? global['React'] : null;
 var ReactDOM = typeof window !== "undefined" ? window['ReactDOM'] : typeof global !== "undefined" ? global['ReactDOM'] : null;
-var Tabs = require('tabs.react');
+
 var IRCStore = require('./ircstore');
+var TabbedRooms = require('./components/tabbedRooms');
+var Input = require('./components/textInput');
 
 //The react interface for the IRC client.
 //TODO: Break into multiple component files.
@@ -63,107 +183,10 @@ var IRCWebChat = React.createClass({
 	}
 });
 
-var TabbedRooms = React.createClass({
-	displayName: 'TabbedRooms',
-
-	propTypes: {
-		rooms: React.PropTypes.arrayOf(React.PropTypes.shape({
-			name: React.PropTypes.string.isRequired,
-			users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
-			messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
-		})),
-
-		activeTab: React.PropTypes.string.isRequired,
-		onChange: React.PropTypes.func.isRequired
-	},
-
-	render: function () {
-		var self = this;
-		return React.createElement(Tabs, { active: this.props.activeTab, propName: 'name', onChange: this.props.onChange }, this.props.rooms.map(function (room) {
-			return React.createElement(Room, { name: room.name, users: room.users, messages: room.messages, key: room.name });
-		}));
-	}
-});
-
-var Room = React.createClass({
-	displayName: 'Room',
-
-	propTypes: {
-		name: React.PropTypes.string.isRequired,
-		users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
-		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
-	},
-
-	render: function () {
-		var isRoom = this.props.name[0] == '#';
-		return React.createElement('div', { className: 'row' }, React.createElement(MessageList, { messages: this.props.messages }), isRoom ? React.createElement(NickList, { users: this.props.users }) : null);
-	}
-});
-
-var NickList = React.createClass({
-	displayName: 'NickList',
-
-	propTypes: {
-		users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
-	},
-
-	render: function () {
-		var rows = [];
-		for (var k = 0; k < this.props.users.length; k++) rows.push(React.createElement('li', { className: 'nick', key: k }, this.props.users[k]));
-		return React.createElement('div', { className: 'nicklist' }, React.createElement('ul', { className: 'col-xs-2' }, rows));
-	}
-});
-
-var MessageList = React.createClass({
-	displayName: 'MessageList',
-
-	propTypes: {
-		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
-	},
-
-	componentWillUpdate: function () {
-		//Determine if we're at the bottom of the message list
-		var node = ReactDOM.findDOMNode(this);
-		this.atBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
-	},
-
-	componentDidUpdate: function () {
-		if (this.atBottom) {
-			//If we're at the bottom, make sure we stay at the bottom
-			var node = ReactDOM.findDOMNode(this);
-			node.scrollTop = node.scrollHeight;
-		}
-	},
-
-	render: function () {
-		var rows = [];
-		for (var k = 0; k < this.props.messages.length; k++) rows.push(React.createElement('span', { key: k }, this.props.messages[k]));
-		return React.createElement('div', { className: 'messagelist col-xs-10' }, rows);
-	}
-});
-
-var Input = React.createClass({
-	displayName: 'Input',
-
-	propTypes: {
-		onChange: React.PropTypes.func,
-		onSend: React.PropTypes.func,
-		value: React.PropTypes.string
-	},
-	render: function () {
-		return React.createElement('div', { className: 'ircinput row' }, React.createElement('input', { type: 'text', value: this.props.value, className: 'col-xs-11',
-			onKeyDown: this.checkForSend, onChange: this.props.onChange }), React.createElement('button', { className: 'col-xs-1', onClick: this.props.onSend }, 'Send'));
-	},
-
-	checkForSend: function (event) {
-		if (event.key == 'Enter') this.props.onSend(event);
-	}
-});
-
 ReactDOM.render(React.createElement(IRCWebChat, null), document.getElementById('ircwebchat'));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./ircstore":2,"tabs.react":3}],2:[function(require,module,exports){
+},{"./components/tabbedRooms":4,"./components/textInput":5,"./ircstore":7}],7:[function(require,module,exports){
 'use strict';
 
 var _callbacks = []; //Array of callbacks
@@ -478,7 +501,7 @@ function getCookie(name) {
 
 module.exports = IRCStore;
 
-},{}],3:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 (function (global){
 (function () {
 	'use strict';
@@ -689,4 +712,4 @@ module.exports = IRCStore;
 	}
 })();
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"react":"react"}]},{},[1]);
+},{"react":"react"}]},{},[6]);
