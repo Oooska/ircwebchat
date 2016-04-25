@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/oooska/irc"
@@ -145,7 +146,6 @@ func (c *ircchat) Start() error {
 			c.running = true
 			go ircManager(*c)
 		}
-
 	}
 	return err
 }
@@ -167,10 +167,22 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 		//Send open channels to client
 		for _, ch := range c.client.ChannelNames() {
 			webclient.Write(irc.JoinMessage(ch))
+
+			//Send users in the rooms as a names reply commands (353 to indicate start, 366 to indicate end)
+			//Webclient doesn't care about length, but a traditional IRC client will
+			//TODO: Indicate if channel is public, private or secret ( "=" / "*" / "@" ), current sends as pub
+			//:tepper.freenode.net 353 goirctest @ #gotest :goirctest @Oooska
+			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
+			users, _ := c.client.Users(ch)
+			namesRepl := fmt.Sprintf("353 %s = %s :%s", c.settings.Login().Nick, ch, strings.Join(users, " "))
+			namesEndRepl := fmt.Sprintf("366 %s %s", c.settings.Login().Nick, ch)
+			log.Printf("Sending 353 command to webclient: %s", namesRepl)
+			webclient.Write(irc.NewMessage(namesRepl))
+			webclient.Write(irc.NewMessage(namesEndRepl))
+
 			for _, msg := range c.client.Messages(ch) {
 				webclient.Write(irc.NewMessage(msg))
 			}
-			//TODO: Send users
 		}
 
 		//Register as a listener
