@@ -15,7 +15,7 @@ func main() {
 	//mux := http.NewServeMux()
 	log.SetFlags(log.Lshortfile | log.Ltime)
 	t := populateTemplates()
-	ircwebchat.Register(t, nil) //mux)
+	ircwebchat.Register(t, "static/", nil)
 	go log.Fatal(http.ListenAndServe(":8080", nil))
 }
 

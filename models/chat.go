@@ -153,8 +153,8 @@ func (c *ircchat) Start() error {
 //Stop causes the IRC server to disconnect, dropping any clients
 func (c *ircchat) Stop() {
 	if c.running {
-		close(c.quit)
 		c.running = false
+		close(c.quit)
 	}
 }
 
