@@ -274,7 +274,7 @@ func ircManager(c ircchat) { //ircConn irc.Conn, newClients chan irc.Conn
 			c.webClientsLock.RUnlock()
 		case err := <-errChan:
 			log.Printf("Recieved error from serverListerner: %s", err.Error())
-			close(c.quit)
+			c.Stop()
 		case <-c.quit:
 			log.Printf("Stopping the chat. Disconnecting client.")
 			c.Stop()
