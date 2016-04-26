@@ -6,7 +6,7 @@ var MessageList = React.createClass({
 	componentWillUpdate: function(){
 		//Determine if we're at the bottom of the message list
 		var node = ReactDOM.findDOMNode(this);
-		this.atBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
+		this.atBottom = node.scrollTop + node.offsetHeight >= node.scrollHeight;
 	},
 
 	componentDidUpdate: function(){

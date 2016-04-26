@@ -7,7 +7,6 @@ var TabbedRooms = require('./components/tabbedRooms');
 var Input = require('./components/textInput');
 
 //The react interface for the IRC client.
-//TODO: Break into multiple component files.
 var IRCWebChat = React.createClass({
 	getInitialState: function(){
 		return {

@@ -9,7 +9,7 @@ var MessageList = React.createClass({
 	componentWillUpdate: function () {
 		//Determine if we're at the bottom of the message list
 		var node = ReactDOM.findDOMNode(this);
-		this.atBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
+		this.atBottom = node.scrollTop + node.offsetHeight >= node.scrollHeight;
 	},
 
 	componentDidUpdate: function () {
@@ -127,7 +127,6 @@ var TabbedRooms = require('./components/tabbedRooms');
 var Input = require('./components/textInput');
 
 //The react interface for the IRC client.
-//TODO: Break into multiple component files.
 var IRCWebChat = React.createClass({
 	displayName: 'IRCWebChat',
 
