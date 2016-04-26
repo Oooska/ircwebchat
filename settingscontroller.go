@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/oooska/ircwebchat/models"
 	"github.com/oooska/ircwebchat/viewmodels"
 )
 
@@ -31,55 +32,79 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
+	log.Printf("Account: %+v", mdlAcct)
+	vmSettings := viewmodels.GetEmptySettings()
+
+	log.Printf("Looking up existing settings...")
 	mdlSettings, err := modelSettings.Settings(mdlAcct)
-
-	settings := viewmodels.GetSettings()
-	settings.Title = "IRC Web Chat - Settings"
-	settings.Username = mdlAcct.Username()
-
-	if req.Method == "POST" {
-		settings.Enabled = parseCheckbox("Enabled", req)
-		settings.Name = req.FormValue("Name")
-		settings.Address = req.FormValue("Address")
-		settings.Port, _ = strconv.Atoi(req.FormValue("Port"))
-		settings.SSL = parseCheckbox("SSL", req)
-		settings.User.Nick = req.FormValue("Nick")
-		settings.User.Password = req.FormValue("Password")
-		settings.AltUser.Nick = req.FormValue("AltNick")
-		settings.AltUser.Password = req.FormValue("AltPassword")
-		log.Printf("Posted settings: %+v", settings)
+	if req.Method == "GET" { //Get saved settings, or default
+		if err != nil {
+			log.Printf("No settings found. Getting default settings.")
+			vmSettings = viewmodels.GetDefaultSettings()
+		} else {
+			log.Printf("Found existing settings. Loading...")
+			vmSettings = modelSettingsToView(mdlSettings)
+			vmSettings.Enabled = chatManager.ChatStarted(mdlAcct)
+		}
+	} else if req.Method == "POST" {
+		postFormToSettings(req, &vmSettings)
+		log.Printf("Posted settings: %+v", vmSettings)
 		//TODO: Validate form
-
-		modelSettings.UpdateSettings(mdlAcct, settings.Enabled, settings.Name, settings.Address, settings.Port, settings.SSL)
-		modelSettings.UpdateLogin(mdlAcct, settings.User.Nick, settings.User.Password)
-		s := modelSettings.UpdateAltLogin(mdlAcct, settings.AltUser.Nick, settings.AltUser.Password)
-
-		//Check to see if we need to start the client (enable toggled)
-		if s.Enabled() && (err == nil || (err != nil && !mdlSettings.Enabled())) {
+		modelSettings.UpdateSettings(mdlAcct, vmSettings.Enabled, vmSettings.Name, vmSettings.Address, vmSettings.Port, vmSettings.SSL)
+		modelSettings.UpdateLogin(mdlAcct, vmSettings.User.Nick, vmSettings.User.Password)
+		s := modelSettings.UpdateAltLogin(mdlAcct, vmSettings.AltUser.Nick, vmSettings.AltUser.Password)
+		log.Printf("Managed to update settings without crashing...")
+		//Check to see if we need to start the client
+		if s.Enabled() && !chatManager.ChatStarted(mdlAcct) {
 			log.Printf("Starting chat for %s", mdlAcct.Username())
-			chatManager.StartChat(mdlAcct, s)
-		} else if err == nil && mdlSettings.Enabled() && !s.Enabled() {
-			log.Printf("Teliing chat for %s to disconnect.", mdlAcct.Username())
+			err := chatManager.StartChat(mdlAcct, s)
+			if err != nil {
+				vmSettings.ConnectError = err.Error()
+				//Unable to connect, update 'Enabled' to false
+				modelSettings.UpdateSettings(mdlAcct, false, vmSettings.Name, vmSettings.Address, vmSettings.Port, vmSettings.SSL)
+				vmSettings.Enabled = false
+			}
+		} else if !s.Enabled() && chatManager.ChatStarted(mdlAcct) {
+			log.Printf("Disconnecting chat for %s", mdlAcct.Username())
 			chatManager.StopChat(mdlAcct)
 		}
-
-	} else if err == nil { //Grab previously saved info
-		settings.Enabled = mdlSettings.Enabled()
-		settings.Name = mdlSettings.Name()
-		settings.Address = mdlSettings.Address()
-		settings.Port = mdlSettings.Port()
-		settings.SSL = mdlSettings.SSL()
-		settings.User.Nick = mdlSettings.Login().Nick
-		settings.User.Password = mdlSettings.Login().Password
-		settings.AltUser.Nick = mdlSettings.AltLogin().Nick
-		settings.AltUser.Password = mdlSettings.AltLogin().Password
 	}
+
+	vmSettings.Title = "IRC Web Chat - Settings"
+	vmSettings.Username = mdlAcct.Username()
+
 	w.Header().Add("Content-Header", "text/html")
-	sc.template.Execute(w, settings)
+	sc.template.Execute(w, vmSettings)
 }
 
 func parseCheckbox(field string, req *http.Request) bool {
 	val := req.FormValue(field)
-	log.Printf("form['%s']=%s (evaluates to %v)", field, val, val == "on")
 	return val == "on"
+}
+
+func modelSettingsToView(mdlSettings models.Settings) viewmodels.Settings {
+	vs := viewmodels.GetEmptySettings()
+
+	vs.Enabled = mdlSettings.Enabled()
+	vs.Name = mdlSettings.Name()
+	vs.Address = mdlSettings.Address()
+	vs.Port = mdlSettings.Port()
+	vs.SSL = mdlSettings.SSL()
+	vs.User.Nick = mdlSettings.Login().Nick
+	vs.User.Password = mdlSettings.Login().Password
+	vs.AltUser.Nick = mdlSettings.AltLogin().Nick
+	vs.AltUser.Password = mdlSettings.AltLogin().Password
+	return vs
+}
+
+func postFormToSettings(req *http.Request, settings *viewmodels.Settings) {
+	settings.Enabled = parseCheckbox("Enabled", req)
+	settings.Name = req.FormValue("Name")
+	settings.Address = req.FormValue("Address")
+	settings.Port, _ = strconv.Atoi(req.FormValue("Port"))
+	settings.SSL = parseCheckbox("SSL", req)
+	settings.User.Nick = req.FormValue("Nick")
+	settings.User.Password = req.FormValue("Password")
+	settings.AltUser.Nick = req.FormValue("AltNick")
+	settings.AltUser.Password = req.FormValue("AltPassword")
 }

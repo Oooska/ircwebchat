@@ -14,9 +14,9 @@
               <label>Port:</label><input type="text" name="Port" value="{{.Port}}" /> 
               <label>Use SSL</label><input type="checkbox" name="SSL" {{if .SSL}}checked{{end}}/>
           </div>
-
           <div><label>Nick:</label><input type="text" Name="Nick" value="{{.User.Nick}}"/>  <label>Password:</label> <input type="password" name="Password" value="{{.User.Password}}"/> (leave blank if unregistered)</div>
           <div><label>Alt Nick:</label><input type="text" name="AltNick" value="{{.AltUser.Nick}}"/> <label>Password:</label> <input type="Password" name="AltPassword" value="{{.AltUser.Password}}" /> (leave blank if unregistered)</div>
+          {{if .ConnectError}}<div class="error">Error connecting to server: {{.ConnectError}}</div>{{end}}
           <button type="submit">Save</button>
       </form>
   </body>

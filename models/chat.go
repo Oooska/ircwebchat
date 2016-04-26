@@ -18,6 +18,7 @@ type ChatManager interface {
 	StartChat(Account, Settings) error
 	StopChat(Account)
 	JoinChat(acct Account, sessionID string, webclient net.Conn) error
+	ChatStarted(Account) bool
 }
 
 //NewChatManager returns a new chat manager to manage communication
@@ -74,6 +75,16 @@ func (cm chatManager) JoinChat(acct Account, sessionID string, webclient net.Con
 	log.Printf("Chat found for %s", acct.Username())
 	err := c.Join(sessionID, irc.NewConnectionWrapper(webclient))
 	return err
+}
+
+//ChatStarted returns true if the chat has started, false if it has not
+//started or does not exist.
+func (cm chatManager) ChatStarted(acct Account) bool {
+	c, ok := cm.chatmap[acct.Username()]
+	if !ok {
+		return false
+	}
+	return c.Active()
 }
 
 func newChat(acct Account, settings Settings) chat {
@@ -140,11 +151,13 @@ func (c *ircchat) Start() error {
 				err = client.Write(irc.PrivMessage("NickServ", "identify "+login.Password))
 			}
 		}
-
 		//TODO: Auto join rooms
+
 		if err == nil {
 			c.running = true
 			go ircManager(*c)
+		} else {
+			c.Stop()
 		}
 	}
 	return err
@@ -276,8 +289,8 @@ func ircManager(c ircchat) { //ircConn irc.Conn, newClients chan irc.Conn
 			log.Printf("Recieved error from serverListerner: %s", err.Error())
 			c.Stop()
 		case <-c.quit:
-			log.Printf("Stopping the chat. Disconnecting client.")
-			c.Stop()
+			c.client.Write(irc.NewMessage("QUIT"))
+			log.Printf("Recieved quit message over channel. Sent quit message to server.")
 			return
 		}
 	}
