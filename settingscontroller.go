@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/oooska/ircwebchat/models"
-	"github.com/oooska/ircwebchat/viewmodels"
 )
 
 type settingsController struct {
@@ -26,55 +25,75 @@ func (sc settingsController) ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
 func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) {
-	mdlAcct, err := validateCookie(w, req)
+	account, err := validateCookie(w, req)
 	if err != nil {
 		//Not logged in - get user out of here
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
-	log.Printf("Account: %+v", mdlAcct)
-	vmSettings := viewmodels.GetEmptySettings()
+	log.Printf("Account: %+v", account)
+	var vsettings viewsettings
 
 	log.Printf("Looking up existing settings...")
-	mdlSettings, err := modelSettings.Settings(mdlAcct)
+	mdlSettings, err := modelSettings.Settings(account)
 	if req.Method == "GET" { //Get saved settings, or default
 		if err != nil {
-			log.Printf("No settings found. Getting default settings.")
-			vmSettings = viewmodels.GetDefaultSettings()
+			//No settings saved yet - use defaults
+			vsettings = getDefaultViewSettings()
+			vsettings.User.Nick = account.Username()
 		} else {
-			log.Printf("Found existing settings. Loading...")
-			vmSettings = modelSettingsToView(mdlSettings)
-			vmSettings.Enabled = chatManager.ChatStarted(mdlAcct)
+			vsettings = modelSettingsToView(mdlSettings)
+			vsettings.Enabled = chatManager.ChatStarted(account)
 		}
 	} else if req.Method == "POST" {
-		postFormToSettings(req, &vmSettings)
-		log.Printf("Posted settings: %+v", vmSettings)
-		//TODO: Validate form
-		modelSettings.UpdateSettings(mdlAcct, vmSettings.Enabled, vmSettings.Name, vmSettings.Address, vmSettings.Port, vmSettings.SSL)
-		modelSettings.UpdateLogin(mdlAcct, vmSettings.User.Nick, vmSettings.User.Password)
-		s := modelSettings.UpdateAltLogin(mdlAcct, vmSettings.AltUser.Nick, vmSettings.AltUser.Password)
-		log.Printf("Managed to update settings without crashing...")
+		vsettings = viewsettings{}
+		postFormToSettings(req, &vsettings)
+
+		//Update settings
+		//TODO: Simplify modelSettings update functions
+		modelSettings.UpdateSettings(account, vsettings.Enabled, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL)
+		modelSettings.UpdateLogin(account, vsettings.User.Nick, vsettings.User.Password)
+		s := modelSettings.UpdateAltLogin(account, vsettings.AltUser.Nick, vsettings.AltUser.Password)
+
 		//Check to see if we need to start the client
-		if s.Enabled() && !chatManager.ChatStarted(mdlAcct) {
-			log.Printf("Starting chat for %s", mdlAcct.Username())
-			err := chatManager.StartChat(mdlAcct, s)
+		if s.Enabled() && !chatManager.ChatStarted(account) {
+			log.Printf("Starting chat for %s", account.Username())
+			err := chatManager.StartChat(account, s)
 			if err != nil {
-				vmSettings.ConnectError = err.Error()
+				vsettings.ConnectError = err.Error()
 				//Unable to connect, update 'Enabled' to false
-				modelSettings.UpdateSettings(mdlAcct, false, vmSettings.Name, vmSettings.Address, vmSettings.Port, vmSettings.SSL)
-				vmSettings.Enabled = false
+				modelSettings.UpdateSettings(account, false, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL)
+				vsettings.Enabled = false
 			}
-		} else if !s.Enabled() && chatManager.ChatStarted(mdlAcct) {
-			log.Printf("Disconnecting chat for %s", mdlAcct.Username())
-			chatManager.StopChat(mdlAcct)
+		} else if !s.Enabled() && chatManager.ChatStarted(account) {
+			log.Printf("Disconnecting chat for %s", account.Username())
+			chatManager.StopChat(account)
 		}
 	}
 
-	vmSettings.Title = "IRC Web Chat - Settings"
-	vmSettings.Username = mdlAcct.Username()
+	vsettings.Title = "IRC Web Chat - Settings"
+	vsettings.Username = account.Username()
+	vsettings.Active = "Settings"
 
 	w.Header().Add("Content-Header", "text/html")
-	sc.template.Execute(w, vmSettings)
+	sc.template.Execute(w, vsettings)
+}
+
+//viewsettings represents the
+type viewsettings struct {
+	sitedata
+	Enabled      bool
+	Name         string
+	Address      string
+	Port         int
+	SSL          bool
+	User         models.IRCLogin
+	AltUser      models.IRCLogin
+	ConnectError string
+}
+
+func getDefaultViewSettings() viewsettings {
+	return viewsettings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
 }
 
 func parseCheckbox(field string, req *http.Request) bool {
@@ -82,8 +101,8 @@ func parseCheckbox(field string, req *http.Request) bool {
 	return val == "on"
 }
 
-func modelSettingsToView(mdlSettings models.Settings) viewmodels.Settings {
-	vs := viewmodels.GetEmptySettings()
+func modelSettingsToView(mdlSettings models.Settings) viewsettings {
+	vs := viewsettings{}
 
 	vs.Enabled = mdlSettings.Enabled()
 	vs.Name = mdlSettings.Name()
@@ -97,7 +116,7 @@ func modelSettingsToView(mdlSettings models.Settings) viewmodels.Settings {
 	return vs
 }
 
-func postFormToSettings(req *http.Request, settings *viewmodels.Settings) {
+func postFormToSettings(req *http.Request, settings *viewsettings) {
 	settings.Enabled = parseCheckbox("Enabled", req)
 	settings.Name = req.FormValue("Name")
 	settings.Address = req.FormValue("Address")

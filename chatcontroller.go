@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"golang.org/x/net/websocket"
-
-	"github.com/oooska/ircwebchat/viewmodels"
 )
 
 type chatController struct {
@@ -25,13 +23,15 @@ func (cc chatController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (cc chatController) get(w http.ResponseWriter, req *http.Request) {
-	site := viewmodels.GetSite()
 	acct, err := validateCookie(w, req)
-	site.Title = "IRC Web Chat - Client"
 	if err != nil {
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
+
+	site := sitedata{}
+	site.Title = "IRC Web Chat - Client"
+	site.Active = "Chat"
 	site.Username = acct.Username()
 
 	w.Header().Add("Content-Header", "text/html")

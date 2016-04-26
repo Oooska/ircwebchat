@@ -4,8 +4,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-
-	"github.com/oooska/ircwebchat/viewmodels"
 )
 
 type indexController struct {
@@ -22,13 +20,13 @@ func (ic indexController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (ic indexController) get(w http.ResponseWriter, req *http.Request) {
 	acct, err := validateCookie(w, req)
-	site := viewmodels.GetSite()
+	site := sitedata{}
 	site.Title = "IRC Web Chat"
+	site.Active = "Index"
 	if err == nil {
 		site.Username = acct.Username()
 	}
 	w.Header().Add("Content-Header", "text/html")
-
 	log.Printf("Site: %+v", site)
 	ic.template.Execute(w, site)
 }

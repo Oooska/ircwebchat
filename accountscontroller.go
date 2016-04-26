@@ -1,13 +1,14 @@
 package ircwebchat
 
 import (
+	"errors"
 	"html/template"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oooska/ircwebchat/models"
-	"github.com/oooska/ircwebchat/viewmodels"
 )
 
 type accountsController struct {
@@ -70,8 +71,9 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
-	account := viewmodels.GetAccount()
+	account := viewaccount{}
 	account.Title = "IRC Web Chat - Register"
+	account.Active = "Register"
 
 	if req.Method == "POST" {
 		account.Username = req.FormValue("Username")
@@ -98,7 +100,38 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 	ac.template.Execute(w, account)
 }
 
-//TODO: Set expiration on cookies
+//viewaccount contains the
+type viewaccount struct {
+	sitedata
+	Username        string
+	Password        string
+	ConfirmPassword string
+	Email           string
+	Errors          map[string]error
+}
+
+func (a *viewaccount) Validate() map[string]error {
+	errs := make(map[string]error)
+
+	if len(a.Username) < 3 || len(a.Username) > 32 {
+		errs["Username"] = errors.New("Invalid username. Must be between 3 and 32 characters.")
+	}
+	if len(a.Password) < 5 {
+		errs["Password"] = errors.New("Invalid password. Must be longer than 5 characters")
+	}
+
+	if a.Password != a.ConfirmPassword {
+		errs["ConfirmPassword"] = errors.New("Passwords do not match.")
+	}
+
+	if a.Email == "" || len(a.Email) < 5 || !strings.Contains(a.Email, "@") {
+		errs["Email"] = errors.New("Invalid email address")
+	}
+
+	a.Errors = errs
+	return errs
+}
+
 func setSessionCookie(w http.ResponseWriter, hash string, expires time.Time) {
 	c := http.Cookie{Name: "SessionID", Value: hash, Expires: expires}
 	http.SetCookie(w, &c)
@@ -126,7 +159,6 @@ func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, e
 	}
 
 	sessID := cookie.Value
-
 	acct, err := modelSessions.Lookup(sessID)
 	if err != nil { //No account associated with this session, delete
 		deleteSessionCookie(w)

@@ -52,3 +52,10 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	chatManager.StartChats(modelAccounts, modelSettings)
 	log.Print("User sessions started.")
 }
+
+//sitedata is used by all pages on the site
+type sitedata struct {
+	Title    string
+	Username string
+	Active   string
+}
