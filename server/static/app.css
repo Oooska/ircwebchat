@@ -6,6 +6,20 @@ body {
 	height: 100vh;
 }
 
+header > h3 {
+	display: inline;
+}
+
+header > div {
+	display: inline;
+	position: absolute;
+	right: 0px;
+}
+
+header > div > form {
+	display: inline;
+}
+
 .tabcontent {
 	position: relative;
 	z-index: 3;
@@ -42,7 +56,7 @@ ul.tabs > li.active {
 div.messagelist {
 	background-color: white;
 	overflow-y: auto;
-	height: 90vh;
+	height: 85vh;
 	border: #2C63C8 3px solid;
 }
 
@@ -54,7 +68,7 @@ div.nicklist {
 	background-color: white;
 	text-align: left;
 	overflow-y: auto;
-	height: 90vh;
+	height: 85vh;
 	border: #2C63C8 3px solid;
 }
 
