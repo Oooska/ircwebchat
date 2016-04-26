@@ -1,7 +1,7 @@
 <header>
     <h3>IRC Web Chat</h3>
-    {{if eq . ""}}
-        <div>
+    {{if eq .Username ""}}
+        <div class="linkbanner">
             Welcome Guest. 
             <a href="/register">Register</a> or Sign in: 
             <form action="/login" method="POST">
@@ -11,10 +11,10 @@
             </form>
         </div>
     {{else}}
-        <div>
-            Welcome {{.}}! 
-            <a href="/chat">Chat</a> | 
-            <a href="/settings">Settings</a> | 
+        <div class="linkbanner">
+            Welcome {{.Username}}! 
+            <a href="/chat" {{if eq .Active "Chat"}}class="active"{{end}}>Chat</a> | 
+            <a href="/settings" {{if eq .Active "Settings"}}class="active"{{end}}>Settings</a> | 
             <form action="/logout" method="POST"><button type="submit">Logout</button></form>
         </div>
     {{end}}

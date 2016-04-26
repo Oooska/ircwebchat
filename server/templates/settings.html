@@ -4,7 +4,7 @@
       {{template "_head.html" .Title}}  
   </head>    
   <body>
-      {{template "_header.html" .Username}}
+      {{template "_header.html" .}}
       <h3>Server:</h3>
       <form action="/settings" method="POST">
           <div><label>Connect:</label><input type="checkbox" name="Enabled" {{if .Enabled}}checked{{end}} /></div>

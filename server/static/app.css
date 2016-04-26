@@ -20,6 +20,22 @@ header > div > form {
 	display: inline;
 }
 
+div.linkbanner > a {
+	color: #2C63C8;
+}
+
+div.linkbanner > a.active {
+	background: #2C63C8;
+	color: #FFFFFF;
+}
+
+div.linkbanner > form > button {
+	background:none!important;
+    border:none; 
+    padding:0!important;
+	color: #2C63C8;
+}
+
 .tabcontent {
 	position: relative;
 	z-index: 3;
