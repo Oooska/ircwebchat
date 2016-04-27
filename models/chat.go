@@ -72,7 +72,6 @@ func (cm chatManager) JoinChat(acct Account, sessionID string, webclient net.Con
 	if !ok {
 		return errors.New("Unable to find chat to join")
 	}
-	log.Printf("Chat found for %s", acct.Username())
 	err := c.Join(sessionID, irc.NewConnectionWrapper(webclient))
 	return err
 }
@@ -135,7 +134,6 @@ func (c *ircchat) Start() error {
 	var err error
 	if !c.running {
 		var client irc.Client
-		log.Printf("Starting chat for %s...", c.account.Username())
 		client, err = irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address(), c.settings.Port()), c.settings.SSL())
 		if err != nil {
 			log.Printf("Error starting chat for %s: %s", c.account.Username(), err.Error())
@@ -173,50 +171,48 @@ func (c *ircchat) Stop() {
 
 //Join adds a webclient to the list of active clients. It blocks until webclient socket closes or chat ends
 func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
-	log.Printf("User %s /w session ID %s is joining chat.", c.account.Username(), sessionID)
+	if !c.Active() {
+		return errors.New("The chat session is not active or enabled. Check settings")
+	}
 
-	if c.Active() {
-		webclient.Write(irc.NickMessage(c.settings.Login().Nick))
-		//Send open channels to client
-		for _, ch := range c.client.ChannelNames() {
-			webclient.Write(irc.JoinMessage(ch))
+	webclient.Write(irc.NickMessage(c.settings.Login().Nick))
+	//Send open channels to client
+	for _, ch := range c.client.ChannelNames() {
+		webclient.Write(irc.JoinMessage(ch))
 
-			//Send users in the rooms as a names reply commands (353 to indicate start, 366 to indicate end)
-			//Webclient doesn't care about length, but a traditional IRC client will
-			//TODO: Indicate if channel is public, private or secret ( "=" / "*" / "@" ), current sends as pub
-			//:tepper.freenode.net 353 goirctest @ #gotest :goirctest @Oooska
-			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
-			users, _ := c.client.Users(ch)
-			namesRepl := fmt.Sprintf("353 %s = %s :%s", c.settings.Login().Nick, ch, strings.Join(users, " "))
-			namesEndRepl := fmt.Sprintf("366 %s %s", c.settings.Login().Nick, ch)
-			log.Printf("Sending 353 command to webclient: %s", namesRepl)
-			webclient.Write(irc.NewMessage(namesRepl))
-			webclient.Write(irc.NewMessage(namesEndRepl))
+		//Send users in the rooms as a names reply commands (353 to indicate start, 366 to indicate end)
+		//Webclient doesn't care about length, but a traditional IRC client will
+		//TODO: Indicate if channel is public, private or secret ( "=" / "*" / "@" ), current sends as pub
+		//:tepper.freenode.net 353 goirctest @ #gotest :goirctest @Oooska
+		//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
+		users, _ := c.client.Users(ch)
+		namesRepl := fmt.Sprintf("353 %s = %s :%s", c.settings.Login().Nick, ch, strings.Join(users, " "))
+		namesEndRepl := fmt.Sprintf("366 %s %s", c.settings.Login().Nick, ch)
+		webclient.Write(irc.NewMessage(namesRepl))
+		webclient.Write(irc.NewMessage(namesEndRepl))
 
-			for _, msg := range c.client.Messages(ch) {
-				webclient.Write(irc.NewMessage(msg))
-			}
-		}
-
-		//Register as a listener
-		c.registerClient(sessionID, webclient)
-		for {
-			select {
-			case <-c.quit:
-				fmt.Println("Exiting ircClientListener")
-				return errors.New("IRC Session has ended")
-			default:
-				msg, err := webclient.Read()
-				if err != nil {
-					log.Printf("Error reading from webclient %s (%s): %s", c.account.Username(), sessionID, err.Error())
-					c.unregisterClient(sessionID)
-					return err
-				}
-				c.toServer <- clientMessage{SessionID: sessionID, Message: msg}
-			}
+		for _, msg := range c.client.Messages(ch) {
+			webclient.Write(irc.NewMessage(msg))
 		}
 	}
-	return errors.New("The chat session is not active or enabled. Check settings")
+
+	//Register as a listener
+	c.registerClient(sessionID, webclient)
+	for {
+		select {
+		case <-c.quit:
+			fmt.Println("Exiting ircClientListener")
+			return errors.New("IRC Session has ended")
+		default:
+			msg, err := webclient.Read()
+			if err != nil {
+				c.unregisterClient(sessionID)
+				return err
+			}
+			c.toServer <- clientMessage{SessionID: sessionID, Message: msg}
+		}
+	}
+
 }
 
 //Active returns true if the chat is connected and running
@@ -255,7 +251,6 @@ func ircManager(c ircchat) { //ircConn irc.Conn, newClients chan irc.Conn
 		select {
 		case msg := <-fromServer: //Recieved message from irc server
 			//Send it to all clients
-			//log.Printf("%s: %s", c.account.Username(), msg.Message)
 			c.webClientsLock.RLock()
 			for _, client := range c.webclients {
 				err := client.Write(msg)
@@ -286,11 +281,10 @@ func ircManager(c ircchat) { //ircConn irc.Conn, newClients chan irc.Conn
 			}
 			c.webClientsLock.RUnlock()
 		case err := <-errChan:
-			log.Printf("Recieved error from serverListerner: %s", err.Error())
+			log.Printf("Recieved error: %s", err.Error())
 			c.Stop()
 		case <-c.quit:
 			c.client.Write(irc.NewMessage("QUIT"))
-			log.Printf("Recieved quit message over channel. Sent quit message to server.")
 			return
 		}
 	}

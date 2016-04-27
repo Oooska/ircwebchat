@@ -3,7 +3,6 @@ package ircwebchat
 import (
 	"errors"
 	"html/template"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -165,6 +164,5 @@ func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, e
 		return nil, err
 	}
 
-	log.Printf("Successfully returning account %s for sessID: %s", acct.Username(), sessID)
 	return acct, err
 }

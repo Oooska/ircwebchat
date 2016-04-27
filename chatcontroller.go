@@ -44,19 +44,14 @@ identifies an account and joins an ongoing chat session if one exists
 //TODO: Actually manage disconnections properly.
 */
 func webSocketHandler(ws *websocket.Conn) {
-	//Notify the irc manager of a new websocket
-	log.Println("socketHandler starting")
-	defer log.Println("socketHandler exiting")
-
 	//Client should send its sessionID as first message
-	br := bufio.NewReader(ws)
-	sessionID, err := br.ReadString('\n')
-	sessionID = strings.TrimSpace(sessionID)
-	if err != nil {
-		log.Printf("Error reading from client: %s", err.Error())
+	sc := bufio.NewScanner(ws)
+	sc.Scan()
+	if sc.Err() != nil {
+		log.Printf("Error reading from client: %s", sc.Err().Error())
 		return
 	}
-	log.Printf("Recieved session ID: '%s' over websocket", sessionID)
+	sessionID := strings.TrimSpace(sc.Text())
 	acct, err := modelSessions.Lookup(sessionID)
 	if err != nil {
 		ws.Write([]byte("Closing connection. Unable to find user: " + err.Error()))
@@ -64,6 +59,7 @@ func webSocketHandler(ws *websocket.Conn) {
 		return
 	}
 
+	//Join the irc session that is in progress
 	err = chatManager.JoinChat(acct, sessionID, ws)
 	ws.Write([]byte("Error: " + err.Error()))
 	ws.Close()

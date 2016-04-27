@@ -2,7 +2,6 @@ package ircwebchat
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 
 	"github.com/oooska/ircwebchat/models"
@@ -12,11 +11,8 @@ import (
 
 /* ircwebchat provides a web-based IRC client. A user can share the same IRC
 session across multiple browsers.
-
-Still in early development stages.
 */
 
-var templates *template.Template
 var modelAccounts = models.NewAccounts()
 var modelSessions = models.NewSessions()
 var modelSettings = models.NewSettingsManager()
@@ -29,14 +25,14 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	if mux == nil {
 		mux = http.DefaultServeMux
 	}
-	log.Println("Register() called...")
-	templates = t
 
-	indexController := indexController{template: templates.Lookup("index.html")}
-	settingsController := settingsController{template: templates.Lookup("settings.html")}
-	chatController := chatController{template: templates.Lookup("chat.html")}
-	accountsController := accountsController{template: templates.Lookup("register.html")}
+	//Instantiate our controllers
+	indexController := indexController{template: t.Lookup("index.html")}
+	settingsController := settingsController{template: t.Lookup("settings.html")}
+	chatController := chatController{template: t.Lookup("chat.html")}
+	accountsController := accountsController{template: t.Lookup("register.html")}
 
+	//Associate routes with our controllers
 	mux.Handle("/", indexController)
 	mux.Handle("/settings", settingsController)
 	mux.Handle("/chat", chatController)
@@ -48,14 +44,13 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticFiles))))
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
-	log.Print("About to start user sessions...")
+	//Start sessions that are enabled
 	chatManager.StartChats(modelAccounts, modelSettings)
-	log.Print("User sessions started.")
 }
 
 //sitedata is used by all pages on the site
 type sitedata struct {
 	Title    string
 	Username string
-	Active   string
+	Active   string //Common name for the currently loaded page ('Settings', 'Chat')
 }

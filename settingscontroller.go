@@ -2,7 +2,6 @@ package ircwebchat
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -31,10 +30,8 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
-	log.Printf("Account: %+v", account)
 	var vsettings viewsettings
 
-	log.Printf("Looking up existing settings...")
 	mdlSettings, err := modelSettings.Settings(account)
 	if req.Method == "GET" { //Get saved settings, or default
 		if err != nil {
@@ -57,7 +54,6 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 
 		//Check to see if we need to start the client
 		if s.Enabled() && !chatManager.ChatStarted(account) {
-			log.Printf("Starting chat for %s", account.Username())
 			err := chatManager.StartChat(account, s)
 			if err != nil {
 				vsettings.ConnectError = err.Error()
@@ -66,7 +62,6 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 				vsettings.Enabled = false
 			}
 		} else if !s.Enabled() && chatManager.ChatStarted(account) {
-			log.Printf("Disconnecting chat for %s", account.Username())
 			chatManager.StopChat(account)
 		}
 	}
@@ -96,11 +91,6 @@ func getDefaultViewSettings() viewsettings {
 	return viewsettings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
 }
 
-func parseCheckbox(field string, req *http.Request) bool {
-	val := req.FormValue(field)
-	return val == "on"
-}
-
 func modelSettingsToView(mdlSettings models.Settings) viewsettings {
 	vs := viewsettings{}
 
@@ -126,4 +116,9 @@ func postFormToSettings(req *http.Request, settings *viewsettings) {
 	settings.User.Password = req.FormValue("Password")
 	settings.AltUser.Nick = req.FormValue("AltNick")
 	settings.AltUser.Password = req.FormValue("AltPassword")
+}
+
+func parseCheckbox(field string, req *http.Request) bool {
+	val := req.FormValue(field)
+	return val == "on"
 }

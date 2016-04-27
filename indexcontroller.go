@@ -2,7 +2,6 @@ package ircwebchat
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 )
 
@@ -27,6 +26,5 @@ func (ic indexController) get(w http.ResponseWriter, req *http.Request) {
 		site.Username = acct.Username()
 	}
 	w.Header().Add("Content-Header", "text/html")
-	log.Printf("Site: %+v", site)
 	ic.template.Execute(w, site)
 }
