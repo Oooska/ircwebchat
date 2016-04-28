@@ -3,6 +3,7 @@ package ircwebchat
 import (
 	"errors"
 	"html/template"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -39,13 +40,16 @@ func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 	}
 	acct, err := modelAccounts.Authenticate(username, password)
 	if err != nil {
-		w.Write([]byte(err.Error()))
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
 		return
 	}
 
 	//Success, create session and send off to chat
-	sessID, expires := modelSessions.Start(acct)
+	sessID, expires, err := modelSessions.Start(acct)
+	if err != nil {
+		log.Printf("Error starting session: %s", err.Error())
+	}
 	setSessionCookie(w, sessID, expires)
 	http.Redirect(w, req, "/chat", http.StatusFound)
 }
@@ -87,7 +91,12 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 				errs["Model"] = err
 			} else {
 				//Successfully register. Get this man (or woman) an auth token
-				sessID, expires := modelSessions.Start(mdlAcct)
+				log.Printf("Successfully registered account: %+v", mdlAcct)
+				sessID, expires, err := modelSessions.Start(mdlAcct)
+				log.Printf("Registered. Getting account %+v a session: %s", mdlAcct, sessID)
+				if err != nil {
+					log.Printf("Error starting session: %s", err.Error())
+				}
 				setSessionCookie(w, sessID, expires)
 				http.Redirect(w, req, "/settings", http.StatusFound)
 				return

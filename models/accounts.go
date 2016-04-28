@@ -30,7 +30,7 @@ type accounts struct {
 
 //Account returns the account with the specified username, or an error if none is found
 func (accs accounts) Account(username string) (Account, error) {
-	acct, err := persistenceInstance.Account(username)
+	acct, err := persistenceInstance.account(username)
 	if err != nil {
 		return acct, err
 	}
@@ -43,9 +43,10 @@ func (accs accounts) Account(username string) (Account, error) {
 //Authenticate returns an account if the specified username and password are valid,
 //or an error if the login details are wrong or the account is no longer active.
 func (accs accounts) Authenticate(username, pass string) (Account, error) {
-	acct, err := persistenceInstance.Account(username)
-	log.Printf("Recieved error while authenticating: %v", err)
+	acct, err := persistenceInstance.account(username)
+
 	if err != nil {
+		log.Printf("Recieved error while authenticating: %v", err)
 		return account{}, errors.New("Invalid username/password")
 	}
 
@@ -56,13 +57,14 @@ func (accs accounts) Authenticate(username, pass string) (Account, error) {
 	if !acct.Active() {
 		return account{}, errors.New("This account is not active")
 	}
+	log.Printf("Authenticated account %s, returning account %+v", username, acct)
 	return acct, nil
 }
 
 //Register creates a new account with the specified information.
 //TODO: Proper validation of values
 func (accs accounts) Register(username, password, email string) (Account, error) {
-	acct, err := persistenceInstance.Account(username)
+	acct, err := persistenceInstance.account(username)
 	if err == nil {
 		return nil, errors.New("Username already exists.")
 	}
@@ -78,31 +80,37 @@ func (accs accounts) Register(username, password, email string) (Account, error)
 	}
 
 	acct = newaccount(-1, username, password, email, true)
-	err = persistenceInstance.SaveAccount(acct)
+	err = persistenceInstance.saveAccount(&acct)
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("Registered account: %+v", acct)
 	return acct, nil
 }
 
 //Account represents a user account in the system
 type Account interface {
+	ID() int64
 	Username() string
 	Password() string
 	Email() string
 	Active() bool
 }
 
-func newaccount(id int, username, password, email string, active bool) account {
+func newaccount(id int64, username, password, email string, active bool) account {
 	return account{id: id, username: username, password: password, email: email, active: active}
 }
 
 type account struct {
-	id       int
+	id       int64
 	username string
 	password string
 	email    string
 	active   bool
+}
+
+func (a account) ID() int64 {
+	return a.id
 }
 
 //Returns the username of the account

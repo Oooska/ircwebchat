@@ -20,11 +20,12 @@ type Persistence interface {
 	Stop() error                 //Closes db
 	Init() error                 //Creates tables
 
-	Account(username string) (Account, error)
-	SaveAccount(acct Account) error
+	account(username string) (account, error)
+	saveAccount(acct *account) error
 
-	//Session(id string) (session, error)
-	//SaveSession(s session) error
+	session(id string) (session, error)
+	saveSession(s session) error
+	deleteSession(id string) error
 
 	//Settings(username string) (Settings, error)
 	//SaveSettings(s settings) error
