@@ -24,7 +24,7 @@ func (p *sqlite3) Stop() error {
 }
 
 func (p *sqlite3) Init() error {
-	for _, sqlStmt := range createTables {
+	for _, sqlStmt := range sqlLiteTables {
 		_, err := p.db.Exec(sqlStmt)
 		if err != nil {
 			return err
@@ -35,26 +35,21 @@ func (p *sqlite3) Init() error {
 
 func (p *sqlite3) account(username string) (account, error) {
 	var acct account
-	log.Printf("Account(%s)... p.db: %+v", username, p)
 	stmt, err := p.db.Prepare(`SELECT accountid, username, password, email, active ` +
 		`FROM accounts WHERE username = ?`)
-	log.Printf("Err: %+v", err)
 
 	if err != nil {
 		return acct, err
 	}
 	defer stmt.Close()
-	log.Printf("Getting row...")
 	row := stmt.QueryRow(username)
 	var accountid int64
 	var name, password, email string
 	var active bool
-	log.Printf("Scanning row...")
 	err = row.Scan(&accountid, &name, &password, &email, &active)
 	if err != nil {
 		return acct, err
 	}
-	log.Printf("Retrived account details: %d | %s | %s | %s | %v", accountid, name, password, email, active)
 	return newaccount(accountid, name, password, email, active), nil
 }
 
@@ -75,11 +70,39 @@ func (p *sqlite3) saveAccount(acct *account) error {
 	return err
 }
 
+//activeAccounts obtains all active accounts from the database
+func (p *sqlite3) activeAccounts() ([]account, error) {
+	var accts []account
+	stmt, err := p.db.Prepare(`SELECT accountid, username, password, email, active ` +
+		`FROM accounts WHERE active = 1`)
+	if err != nil {
+		return accts, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
+	if err != nil {
+		return accts, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var accountid int64
+		var name, password, email string
+		var active bool
+		err = rows.Scan(&accountid, &name, &password, &email, &active)
+		if err != nil {
+			return accts, err
+		}
+		accts = append(accts, newaccount(accountid, name, password, email, active))
+	}
+	return accts, nil
+}
+
 func (p *sqlite3) session(id string) (session, error) {
 	var sess session
 	var acct account
-	stmt, err := p.db.Prepare(`SELECT accountid, username, password, email, active, sessionid, expires ` +
-		`FROM accounts, sessions ON accountid=account WHERE sessionid = ?`)
+	stmt, err := p.db.Prepare(`SELECT accounts.accountid, username, password, email, active, sessionid, expires ` +
+		`FROM accounts, sessions ON accounts.accountid=sessions.accountid WHERE sessionid = ?`)
 	if err != nil {
 		return sess, err
 	}
@@ -101,7 +124,7 @@ func (p *sqlite3) session(id string) (session, error) {
 }
 
 func (p *sqlite3) saveSession(s session) error {
-	stmt, err := p.db.Prepare(`INSERT INTO sessions(account, sessionid, expires) ` +
+	stmt, err := p.db.Prepare(`INSERT INTO sessions(accountid, sessionid, expires) ` +
 		`VALUES(?, ?, ?)`)
 	if err != nil {
 		return err
@@ -123,23 +146,59 @@ func (p *sqlite3) deleteSession(id string) error {
 	return err
 }
 
+func (p *sqlite3) settings(acct Account) (Settings, error) {
+	var settings settings
+	stmt, err := p.db.Prepare(`SELECT accountid, active, name, server, port, ssl, nick, pass, altnick, altpass ` +
+		`FROM ircsettings WHERE accountid=?`)
+	if err != nil {
+		return settings, err
+	}
+	defer stmt.Close()
+	row := stmt.QueryRow(acct.ID())
+	var accountid int64
+	var active, ssl bool
+	var name, server, nick, password, altnick, altpassword string
+	var port int
+	err = row.Scan(&accountid, &active, &name, &server, &port, &ssl, &nick, &password, &altnick, &altpassword)
+	if err != nil {
+		return settings, err
+	}
+	settings = newsettings(accountid, active, name, server, port, ssl, newirclogin(nick, password), newirclogin(altnick, altpassword))
+	return settings, nil
+}
+
+func (p *sqlite3) saveSettings(s settings) error {
+	stmt, err := p.db.Prepare(`REPLACE INTO ` +
+		`ircsettings (accountid, active, name, server, port, ssl, nick, pass, altnick, altpass) ` +
+		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(s.accountid, s.enabled,
+		s.name, s.address, s.port, s.ssl, s.login.Nick,
+		s.login.Password, s.altlogin.Nick, s.altlogin.Password)
+	return err
+}
+
 //Statements for creating neccesary tables
 //TODO: Move statements to their own file
-var createTables = []string{`create table if not exists accounts (
+var sqlLiteTables = []string{`create table if not exists accounts (
 		accountid INTEGER not null primary key, 
-		username  TEXT,
+		username  TEXT UNIQUE,
 		password  TEXT,
 		email     TEXT,
         active    INTEGER
 	);`,
 	`create table if not exists sessions (
-		account    INTEGER, 
+		accountid  INTEGER, 
 		sessionid  TEXT,
 		expires    TIMESTAMP,
-		FOREIGN KEY (account) REFERENCES accounts(accountid)
+		FOREIGN KEY (accountid) REFERENCES accounts(accountid)
 	);`,
 	`create table if not exists ircsettings (
-		ircaccountid     INTEGER not null primary key,
+		accountid        INTEGER not null primary key,
 		active           INTEGER,
 		name             TEXT,
 		server           TEXT,
@@ -150,19 +209,19 @@ var createTables = []string{`create table if not exists accounts (
 		altnick          TEXT,
 		altpass          TEXT,
 		account          INTEGER,
-		FOREIGN KEY (account) REFERENCES accounts(accountid)
+		FOREIGN KEY (accountid) REFERENCES accounts(accountid)
 	);`,
 	`create table if not exists channels (
-		ircaccount  INTEGER,
+		accountid  INTEGER,
 		channel     TEXT
 	);`,
 	`create table if not exists messages (
 		messageid    INTEGER not null primary key,
-		ircaccount   INTEGER,
+		accountid    INTEGER,
 		timestamp    TIMESTAMP,
 		command      TEXT,
 		channel      TEXT,
 		message      TEXT,
-		FOREIGN KEY (ircaccount) REFERENCES ircaccounts(ircaccountid)
+		FOREIGN KEY (accountid) REFERENCES ircaccounts(accountid)
 	);`,
 }

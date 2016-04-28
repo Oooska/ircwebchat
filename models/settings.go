@@ -1,12 +1,10 @@
 package models
 
-import "errors"
-
 func NewSettingsManager() SettingsManager {
-	sm := settingsMgr{settings: make(map[string]settings)}
+	sm := settingsMgr{}
 
 	//Dummy data
-	sm.settings["goirctest"] = settings{
+	/*sm.settings["goirctest"] = settings{
 		enabled:  true,
 		name:     "Freenode",
 		address:  "irc.freenode.net",
@@ -14,7 +12,7 @@ func NewSettingsManager() SettingsManager {
 		port:     6667,
 		login:    IRCLogin{Nick: "goirctest", Password: ""},
 		altlogin: IRCLogin{Nick: "goirctest_", Password: ""},
-	}
+	}*/
 
 	/*sm.settings["goirctest2"] = settings{
 		enabled:  false,
@@ -32,49 +30,26 @@ func NewSettingsManager() SettingsManager {
 //SettingsManager keeps track of settings for each account
 type SettingsManager interface {
 	Settings(Account) (Settings, error)
-	UpdateSettings(acct Account, enabled bool, name, address string, port int, ssl bool) Settings
-	UpdateLogin(acct Account, nick, password string) Settings
-	UpdateAltLogin(acct Account, nick, password string) Settings
+	UpdateSettings(acct Account, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) (Settings, error)
 }
 
 type settingsMgr struct {
-	settings map[string]settings
 }
 
 //Returns the settings for a specified account, if they exist
 func (sets settingsMgr) Settings(a Account) (Settings, error) {
-	s, ok := sets.settings[a.Username()]
-	if !ok {
-		return s, errors.New("No settings found")
+	s, err := persistenceInstance.settings(a)
+	if err != nil {
+		return s, err
 	}
 	return s, nil
 }
 
 //UpdateSettings updates the settings for the specified account
-func (sets settingsMgr) UpdateSettings(a Account, enabled bool, name, address string, port int, ssl bool) Settings {
-	s := settings{enabled: enabled, name: name, address: address, ssl: ssl, port: port}
-	sets.settings[a.Username()] = s
-	return s
-}
-
-//UpdateLogin updates the primary nick/pass (optional) of the specified user
-func (sets settingsMgr) UpdateLogin(a Account, nick, password string) Settings {
-	settings, ok := sets.settings[a.Username()]
-	if ok {
-		settings.login = IRCLogin{Nick: nick, Password: password}
-		sets.settings[a.Username()] = settings
-	}
-	return settings
-}
-
-//UpdateAltLogin updates the primary nick/pass (optional) of the specified user
-func (sets settingsMgr) UpdateAltLogin(a Account, nick, password string) Settings {
-	settings, ok := sets.settings[a.Username()]
-	if ok {
-		settings.altlogin = IRCLogin{Nick: nick, Password: password}
-		sets.settings[a.Username()] = settings
-	}
-	return settings
+func (sets settingsMgr) UpdateSettings(a Account, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) (Settings, error) {
+	s := settings{accountid: a.ID(), enabled: enabled, name: name, address: address, ssl: ssl, port: port, login: login, altlogin: altlogin}
+	err := persistenceInstance.saveSettings(s)
+	return s, err
 }
 
 //Settings represents the information required to connect to an IRC server
@@ -88,6 +63,23 @@ type Settings interface {
 	AltLogin() IRCLogin
 }
 
+func newsettings(accountid int64, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) settings {
+	return settings{
+		accountid: accountid,
+		enabled:   enabled,
+		name:      name,
+		address:   address,
+		port:      port,
+		ssl:       ssl,
+		login:     login,
+		altlogin:  altlogin,
+	}
+}
+
+func newirclogin(nick, password string) IRCLogin {
+	return IRCLogin{Nick: nick, Password: password}
+}
+
 //IRCLogin is a simple struct containing a nick and associated password
 type IRCLogin struct {
 	Nick     string
@@ -95,13 +87,14 @@ type IRCLogin struct {
 }
 
 type settings struct {
-	enabled  bool
-	name     string
-	address  string
-	port     int
-	ssl      bool
-	login    IRCLogin
-	altlogin IRCLogin
+	accountid int64
+	enabled   bool
+	name      string
+	address   string
+	port      int
+	ssl       bool
+	login     IRCLogin
+	altlogin  IRCLogin
 }
 
 //Enabled returns true if the IRC server should be connected

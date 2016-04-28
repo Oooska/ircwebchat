@@ -2,6 +2,7 @@ package ircwebchat
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -48,21 +49,22 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 
 		//Update settings
 		//TODO: Simplify modelSettings update functions
-		modelSettings.UpdateSettings(account, vsettings.Enabled, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL)
-		modelSettings.UpdateLogin(account, vsettings.User.Nick, vsettings.User.Password)
-		s := modelSettings.UpdateAltLogin(account, vsettings.AltUser.Nick, vsettings.AltUser.Password)
-
-		//Check to see if we need to start the client
-		if s.Enabled() && !chatManager.ChatStarted(account) {
-			err := chatManager.StartChat(account, s)
-			if err != nil {
-				vsettings.ConnectError = err.Error()
-				//Unable to connect, update 'Enabled' to false
-				modelSettings.UpdateSettings(account, false, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL)
-				vsettings.Enabled = false
+		s, err := modelSettings.UpdateSettings(account, vsettings.Enabled, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL, vsettings.User, vsettings.AltUser)
+		if err != nil {
+			log.Printf("Trouble saving settings: %s", err.Error())
+		} else {
+			//Check to see if we need to start the client
+			if s.Enabled() && !chatManager.ChatStarted(account) {
+				err := chatManager.StartChat(account, s)
+				if err != nil {
+					vsettings.ConnectError = err.Error()
+					//Unable to connect, update 'Enabled' to false
+					modelSettings.UpdateSettings(account, false, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL, vsettings.User, vsettings.AltUser)
+					vsettings.Enabled = false
+				}
+			} else if !s.Enabled() && chatManager.ChatStarted(account) {
+				chatManager.StopChat(account)
 			}
-		} else if !s.Enabled() && chatManager.ChatStarted(account) {
-			chatManager.StopChat(account)
 		}
 	}
 

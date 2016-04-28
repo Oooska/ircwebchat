@@ -45,7 +45,7 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
 	//Start sessions that are enabled
-	chatManager.StartChats(modelAccounts, modelSettings)
+	chatManager.StartChats(modelSettings)
 }
 
 //sitedata is used by all pages on the site

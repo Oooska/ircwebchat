@@ -22,13 +22,14 @@ type Persistence interface {
 
 	account(username string) (account, error)
 	saveAccount(acct *account) error
+	activeAccounts() ([]account, error)
 
 	session(id string) (session, error)
 	saveSession(s session) error
 	deleteSession(id string) error
 
-	//Settings(username string) (Settings, error)
-	//SaveSettings(s settings) error
+	settings(account Account) (Settings, error)
+	saveSettings(s settings) error
 
 	//Messages(timestamp time.Time, cnt int) ([]irc.Message, error)
 	//SaveMessage(acct Account, msg irc.Message) error
