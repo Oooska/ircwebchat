@@ -34,7 +34,7 @@ type chatManager struct {
 //StarChats checks all accounts in the system and connects to the IRC server
 //if the account is enabled.
 func (cm chatManager) StartChats(accts Accounts, settings SettingsManager) {
-	for _, acct := range accts.accountMap() {
+	/*for _, acct := range accts.accountMap() {
 		settings, err := settings.Settings(acct)
 		if err == nil && settings.Enabled() {
 			err := cm.StartChat(acct, settings)
@@ -44,7 +44,7 @@ func (cm chatManager) StartChats(accts Accounts, settings SettingsManager) {
 				log.Printf("Chat started successfully for %s", acct.Username())
 			}
 		}
-	}
+	}*/
 }
 
 //StartChat creates a connection to the IRC server for the specified user
