@@ -1,6 +1,11 @@
 package models
 
-import "errors"
+import (
+	"errors"
+	"time"
+
+	"github.com/oooska/irc"
+)
 
 var persistenceInstance Persistence
 
@@ -31,6 +36,6 @@ type Persistence interface {
 	settings(account Account) (Settings, error)
 	saveSettings(s settings) error
 
-	//Messages(timestamp time.Time, cnt int) ([]irc.Message, error)
-	//SaveMessage(acct Account, msg irc.Message) error
+	messages(acct Account, channel string, timestamp time.Time, count int) ([]irc.Message, error)
+	saveMessage(acct Account, msg irc.Message) error
 }

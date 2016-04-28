@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"log"
 	"time"
+
+	"github.com/oooska/irc"
 )
 
 type sqlite3 struct {
@@ -182,6 +184,47 @@ func (p *sqlite3) saveSettings(s settings) error {
 	return err
 }
 
+func (p *sqlite3) messages(acct Account, channel string, timestamp time.Time, count int) ([]irc.Message, error) {
+	var messages []irc.Message
+	stmt, err := p.db.Prepare(`SELECT message, timestamp FROM messages WHERE accountid = ? AND channel = ? AND timestamp < ? ORDER BY timestamp LIMIT ?`)
+	if err != nil {
+		return messages, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(acct.ID(), channel, timestamp, count)
+	if err != nil {
+		return messages, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var message string
+		var timestamp time.Time
+		err = rows.Scan(&message, &timestamp)
+		if err != nil {
+			return messages, err
+		}
+		messages = append(messages, irc.MessageWithTimestamp(message, timestamp))
+	}
+	return messages, nil
+}
+
+func (p *sqlite3) saveMessage(acct Account, msg irc.Message) error {
+	stmt, err := p.db.Prepare(`INSERT INTO messages(accountid, command, channel, message, timestamp) ` +
+		`VALUES(?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	channel := ""
+	if msg.Command() == "PRIVMSG" || msg.Command() == "ACTION" && len(msg.Params()) > 1 {
+		channel = msg.Params()[0]
+	}
+	_, err = stmt.Exec(acct.ID(), msg.Command(), channel, msg.Message(), msg.Timestamp())
+	return err
+}
+
 //Statements for creating neccesary tables
 //TODO: Move statements to their own file
 var sqlLiteTables = []string{`create table if not exists accounts (
@@ -218,10 +261,10 @@ var sqlLiteTables = []string{`create table if not exists accounts (
 	`create table if not exists messages (
 		messageid    INTEGER not null primary key,
 		accountid    INTEGER,
-		timestamp    TIMESTAMP,
 		command      TEXT,
 		channel      TEXT,
 		message      TEXT,
+		timestamp    TIMESTAMP,
 		FOREIGN KEY (accountid) REFERENCES ircaccounts(accountid)
 	);`,
 }

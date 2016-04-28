@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/oooska/irc"
 )
@@ -139,12 +140,26 @@ type clientMessage struct {
 func (c *ircchat) Start() error {
 	var err error
 	if !c.running {
+
+		saveHandler := func(msg irc.Message) {
+			cmd := msg.Command()
+
+			//Check to make sure it's a message worth saving
+			if cmd == "PRIVMSG" || cmd == "ACTION" {
+				err := persistenceInstance.saveMessage(c.account, msg)
+				if err != nil {
+					log.Printf("Error saving message: %s", err.Error())
+				}
+			}
+		}
+
 		var client irc.Client
 		client, err = irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address(), c.settings.Port()), c.settings.SSL())
 		if err != nil {
 			log.Printf("Error starting chat for %s: %s", c.account.Username(), err.Error())
 			return err
 		}
+		client.AddHandler(irc.Both, saveHandler)
 		c.client = client
 		err = client.Write(irc.UserMessage(c.account.Username(), "ircwebchathost", "somewhere", "quack"))
 
@@ -197,9 +212,19 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 		webclient.Write(irc.NewMessage(namesRepl))
 		webclient.Write(irc.NewMessage(namesEndRepl))
 
-		for _, msg := range c.client.Messages(ch) {
+		/*for _, msg := range c.client.Messages(ch) {
 			webclient.Write(irc.NewMessage(msg))
+		}*/
+		for _, ch := range c.client.ChannelNames() {
+			messages, err := persistenceInstance.messages(c.account, ch, time.Now(), 200)
+			if err != nil {
+				log.Printf("Error retrieving message logs: %s", err.Error())
+			}
+			for _, msg := range messages {
+				webclient.Write(msg)
+			}
 		}
+
 	}
 
 	//Register as a listener
