@@ -2,28 +2,6 @@ package models
 
 func NewSettingsManager() SettingsManager {
 	sm := settingsMgr{}
-
-	//Dummy data
-	/*sm.settings["goirctest"] = settings{
-		enabled:  true,
-		name:     "Freenode",
-		address:  "irc.freenode.net",
-		ssl:      false,
-		port:     6667,
-		login:    IRCLogin{Nick: "goirctest", Password: ""},
-		altlogin: IRCLogin{Nick: "goirctest_", Password: ""},
-	}*/
-
-	/*sm.settings["goirctest2"] = settings{
-		enabled:  false,
-		name:     "Freenode",
-		address:  "irc.freenode.net",
-		ssl:      false,
-		port:     6667,
-		login:    IRCLogin{Nick: "goirctest2", Password: ""},
-		altlogin: IRCLogin{Nick: "goirctest2_", Password: ""},
-	}*/
-
 	return sm
 }
 

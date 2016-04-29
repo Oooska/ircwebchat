@@ -72,8 +72,6 @@ type session struct {
 }
 
 func generateHash(username, password string) string {
-	h := sha256.New()
-	h.Write([]byte(username + password + time.Now().String()))
-	hash := hex.EncodeToString(h.Sum(nil))
-	return hash
+	b := sha256.Sum256([]byte(username + password + time.Now().String()))
+	return hex.EncodeToString(b[:32])
 }

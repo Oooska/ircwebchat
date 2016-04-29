@@ -1,6 +1,8 @@
 package models
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log"
 	"strings"
@@ -9,11 +11,6 @@ import (
 //NewAccounts returns an Accounts
 func NewAccounts() Accounts {
 	accts := accounts{}
-
-	//dummy data
-	//accts.Register("goirctest", "password", "a@b.c")
-
-	//accts.Register("goirctest2", "password", "a@b.c")
 	return accts
 }
 
@@ -50,7 +47,7 @@ func (accs accounts) Authenticate(username, pass string) (Account, error) {
 		return account{}, errors.New("Invalid username/password")
 	}
 
-	if acct.Password() != pass {
+	if acct.Password() != hashPassword(pass) {
 		return account{}, errors.New("Invalid username/password")
 	}
 
@@ -79,7 +76,7 @@ func (accs accounts) Register(username, password, email string) (Account, error)
 		return nil, errors.New("Invalid email address")
 	}
 
-	acct = newaccount(-1, username, password, email, true)
+	acct = newaccount(-1, username, hashPassword(password), email, true)
 	err = persistenceInstance.saveAccount(&acct)
 	if err != nil {
 		return nil, err
@@ -131,4 +128,10 @@ func (a account) Email() string {
 //Returns true if the account is active.
 func (a account) Active() bool {
 	return a.active
+}
+
+//TODO: Salt passwords
+func hashPassword(password string) string {
+	b := sha256.Sum256([]byte(password))
+	return hex.EncodeToString(b[:32])
 }

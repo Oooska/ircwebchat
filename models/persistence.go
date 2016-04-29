@@ -25,17 +25,30 @@ type Persistence interface {
 	Stop() error                 //Closes db
 	Init() error                 //Creates tables
 
+	PersistentAccounts
+	PersistentSession
+	PersistentSettings
+	PersistentMessages
+}
+
+type PersistentAccounts interface {
 	account(username string) (account, error)
 	saveAccount(acct *account) error
 	activeAccounts() ([]account, error)
+}
 
+type PersistentSession interface {
 	session(id string) (session, error)
 	saveSession(s session) error
 	deleteSession(id string) error
+}
 
+type PersistentSettings interface {
 	settings(account Account) (Settings, error)
 	saveSettings(s settings) error
+}
 
+type PersistentMessages interface {
 	messages(acct Account, channel string, timestamp time.Time, count int) ([]irc.Message, error)
 	saveMessage(acct Account, msg irc.Message) error
 }
