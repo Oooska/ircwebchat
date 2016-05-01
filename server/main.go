@@ -18,7 +18,7 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.Ltime)
 	t := populateTemplates()
 
-	p, err := models.NewPersistenceInstance("sqlite3")
+	p, err := models.NewPersistenceInstance("sqlite3", "my super secret key of dooooooooooooooooooooooooooom")
 	log.Printf("p: %+v", p)
 	if err != nil {
 		log.Fatalf("Recieved error starting DB: %s", err.Error())

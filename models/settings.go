@@ -8,7 +8,7 @@ func NewSettingsManager() SettingsManager {
 //SettingsManager keeps track of settings for each account
 type SettingsManager interface {
 	Settings(Account) (Settings, error)
-	UpdateSettings(acct Account, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) (Settings, error)
+	UpdateSettings(acct Account, settings Settings) (Settings, error)
 }
 
 type settingsMgr struct {
@@ -24,33 +24,22 @@ func (sets settingsMgr) Settings(a Account) (Settings, error) {
 }
 
 //UpdateSettings updates the settings for the specified account
-func (sets settingsMgr) UpdateSettings(a Account, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) (Settings, error) {
-	s := settings{accountid: a.ID(), enabled: enabled, name: name, address: address, ssl: ssl, port: port, login: login, altlogin: altlogin}
-	err := persistenceInstance.saveSettings(s)
-	return s, err
+func (sets settingsMgr) UpdateSettings(a Account, settings Settings) (Settings, error) {
+	settings.accountid = a.ID()
+	err := persistenceInstance.saveSettings(settings)
+	return settings, err
 }
 
-//Settings represents the information required to connect to an IRC server
-type Settings interface {
-	Enabled() bool
-	Name() string
-	Address() string
-	Port() int
-	SSL() bool
-	Login() IRCLogin
-	AltLogin() IRCLogin
-}
-
-func newsettings(accountid int64, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) settings {
-	return settings{
+func newsettings(accountid int64, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) Settings {
+	return Settings{
 		accountid: accountid,
-		enabled:   enabled,
-		name:      name,
-		address:   address,
-		port:      port,
-		ssl:       ssl,
-		login:     login,
-		altlogin:  altlogin,
+		Enabled:   enabled,
+		Name:      name,
+		Address:   address,
+		Port:      port,
+		SSL:       ssl,
+		Login:     login,
+		AltLogin:  altlogin,
 	}
 }
 
@@ -64,48 +53,13 @@ type IRCLogin struct {
 	Password string
 }
 
-type settings struct {
+type Settings struct {
 	accountid int64
-	enabled   bool
-	name      string
-	address   string
-	port      int
-	ssl       bool
-	login     IRCLogin
-	altlogin  IRCLogin
-}
-
-//Enabled returns true if the IRC server should be connected
-func (s settings) Enabled() bool {
-	return s.enabled
-}
-
-//Name returns the friendly name of the IRC server (e.g. 'freenode')
-func (s settings) Name() string {
-	return s.name
-}
-
-//Address returns the address of the IRC server
-func (s settings) Address() string {
-	return s.address
-}
-
-//Port returns the port of the IRC server
-func (s settings) Port() int {
-	return s.port
-}
-
-//SSL returns true if SSL is enabled between this server and the irc server
-func (s settings) SSL() bool {
-	return s.ssl
-}
-
-//Login returns the login details for the primary nick
-func (s settings) Login() IRCLogin {
-	return s.login
-}
-
-//AltLogin returns the login details for the alternate nick
-func (s settings) AltLogin() IRCLogin {
-	return s.altlogin
+	Enabled   bool
+	Name      string
+	Address   string
+	Port      int
+	SSL       bool
+	Login     IRCLogin
+	AltLogin  IRCLogin
 }

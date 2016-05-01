@@ -9,7 +9,8 @@ import (
 )
 
 type sqlite3 struct {
-	db *sql.DB
+	db        *sql.DB
+	secretkey string
 }
 
 func (p *sqlite3) Start(filename string) error {
@@ -149,7 +150,7 @@ func (p *sqlite3) deleteSession(id string) error {
 }
 
 func (p *sqlite3) settings(acct Account) (Settings, error) {
-	var settings settings
+	var settings Settings
 	stmt, err := p.db.Prepare(`SELECT accountid, active, name, server, port, ssl, nick, pass, altnick, altpass ` +
 		`FROM ircsettings WHERE accountid=?`)
 	if err != nil {
@@ -166,10 +167,24 @@ func (p *sqlite3) settings(acct Account) (Settings, error) {
 		return settings, err
 	}
 	settings = newsettings(accountid, active, name, server, port, ssl, newirclogin(nick, password), newirclogin(altnick, altpassword))
+
+	//Need to decrypt password
+	login, err := decryptPassword(p.secretkey, settings.Login)
+	if err != nil {
+		log.Printf("Error decrypting IRC password: %s", err.Error())
+	}
+	settings.Login = login
+	altlogin, err := decryptPassword(p.secretkey, settings.AltLogin)
+	if err != nil {
+		log.Printf("Error decrypting alt IRC password: %s", err.Error())
+	}
+	settings.AltLogin = altlogin
 	return settings, nil
 }
 
-func (p *sqlite3) saveSettings(s settings) error {
+func (p *sqlite3) saveSettings(s Settings) error {
+	//TODO: Need to encrypt irc passwords
+
 	stmt, err := p.db.Prepare(`REPLACE INTO ` +
 		`ircsettings (accountid, active, name, server, port, ssl, nick, pass, altnick, altpass) ` +
 		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -178,9 +193,9 @@ func (p *sqlite3) saveSettings(s settings) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(s.accountid, s.enabled,
-		s.name, s.address, s.port, s.ssl, s.login.Nick,
-		s.login.Password, s.altlogin.Nick, s.altlogin.Password)
+	_, err = stmt.Exec(s.accountid, s.Enabled,
+		s.Name, s.Address, s.Port, s.SSL, s.Login.Nick,
+		s.Login.Password, s.AltLogin.Nick, s.AltLogin.Password)
 	return err
 }
 
@@ -226,7 +241,6 @@ func (p *sqlite3) saveMessage(acct Account, msg irc.Message) error {
 }
 
 //Statements for creating neccesary tables
-//TODO: Move statements to their own file
 var sqlLiteTables = []string{`create table if not exists accounts (
 		accountid INTEGER not null primary key, 
 		username  TEXT UNIQUE,

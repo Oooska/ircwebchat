@@ -38,31 +38,33 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			//No settings saved yet - use defaults
 			vsettings = getDefaultViewSettings()
-			vsettings.User.Nick = account.Username()
+			vsettings.Settings.Login.Nick = account.Username()
 		} else {
 			vsettings = modelSettingsToView(mdlSettings)
-			vsettings.Enabled = chatManager.ChatStarted(account)
+			vsettings.Settings.Enabled = chatManager.ChatStarted(account)
 		}
 	} else if req.Method == "POST" {
-		vsettings = viewsettings{}
-		postFormToSettings(req, &vsettings)
+		psettings := models.Settings{}
+		postFormToSettings(req, &psettings)
 
 		//Update settings
 		//TODO: Simplify modelSettings update functions
-		s, err := modelSettings.UpdateSettings(account, vsettings.Enabled, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL, vsettings.User, vsettings.AltUser)
+		s, err := modelSettings.UpdateSettings(account, psettings)
 		if err != nil {
 			log.Printf("Trouble saving settings: %s", err.Error())
 		} else {
 			//Check to see if we need to start the client
-			if s.Enabled() && !chatManager.ChatStarted(account) {
+			if s.Enabled && !chatManager.ChatStarted(account) {
 				err := chatManager.StartChat(account, s)
 				if err != nil {
 					vsettings.ConnectError = err.Error()
 					//Unable to connect, update 'Enabled' to false
-					modelSettings.UpdateSettings(account, false, vsettings.Name, vsettings.Address, vsettings.Port, vsettings.SSL, vsettings.User, vsettings.AltUser)
-					vsettings.Enabled = false
+					s.Enabled = false
+					modelSettings.UpdateSettings(account, s)
+					vsettings.Settings.Enabled = false
 				}
-			} else if !s.Enabled() && chatManager.ChatStarted(account) {
+				vsettings = modelSettingsToView(s)
+			} else if !s.Enabled && chatManager.ChatStarted(account) {
 				chatManager.StopChat(account)
 			}
 		}
@@ -79,45 +81,39 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 //viewsettings represents the
 type viewsettings struct {
 	sitedata
-	Enabled      bool
-	Name         string
-	Address      string
-	Port         int
-	SSL          bool
-	User         models.IRCLogin
-	AltUser      models.IRCLogin
+	Settings     models.Settings
 	ConnectError string
 }
 
 func getDefaultViewSettings() viewsettings {
-	return viewsettings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
+	return viewsettings{Settings: models.Settings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}}
 }
 
 func modelSettingsToView(mdlSettings models.Settings) viewsettings {
 	vs := viewsettings{}
 
-	vs.Enabled = mdlSettings.Enabled()
-	vs.Name = mdlSettings.Name()
-	vs.Address = mdlSettings.Address()
-	vs.Port = mdlSettings.Port()
-	vs.SSL = mdlSettings.SSL()
-	vs.User.Nick = mdlSettings.Login().Nick
-	vs.User.Password = mdlSettings.Login().Password
-	vs.AltUser.Nick = mdlSettings.AltLogin().Nick
-	vs.AltUser.Password = mdlSettings.AltLogin().Password
+	vs.Settings.Enabled = mdlSettings.Enabled
+	vs.Settings.Name = mdlSettings.Name
+	vs.Settings.Address = mdlSettings.Address
+	vs.Settings.Port = mdlSettings.Port
+	vs.Settings.SSL = mdlSettings.SSL
+	vs.Settings.Login.Nick = mdlSettings.Login.Nick
+	vs.Settings.Login.Password = mdlSettings.Login.Password
+	vs.Settings.AltLogin.Nick = mdlSettings.AltLogin.Nick
+	vs.Settings.AltLogin.Password = mdlSettings.AltLogin.Password
 	return vs
 }
 
-func postFormToSettings(req *http.Request, settings *viewsettings) {
+func postFormToSettings(req *http.Request, settings *models.Settings) {
 	settings.Enabled = parseCheckbox("Enabled", req)
 	settings.Name = req.FormValue("Name")
 	settings.Address = req.FormValue("Address")
 	settings.Port, _ = strconv.Atoi(req.FormValue("Port"))
 	settings.SSL = parseCheckbox("SSL", req)
-	settings.User.Nick = req.FormValue("Nick")
-	settings.User.Password = req.FormValue("Password")
-	settings.AltUser.Nick = req.FormValue("AltNick")
-	settings.AltUser.Password = req.FormValue("AltPassword")
+	settings.Login.Nick = req.FormValue("Nick")
+	settings.Login.Password = req.FormValue("Password")
+	settings.AltLogin.Nick = req.FormValue("AltNick")
+	settings.AltLogin.Password = req.FormValue("AltPassword")
 }
 
 func parseCheckbox(field string, req *http.Request) bool {

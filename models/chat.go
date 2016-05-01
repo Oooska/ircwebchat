@@ -41,7 +41,7 @@ func (cm chatManager) StartChats(settings SettingsManager) {
 	}
 	for _, acct := range accts {
 		settings, err := settings.Settings(acct)
-		if err == nil && settings.Enabled() {
+		if err == nil && settings.Enabled {
 			err := cm.StartChat(acct, settings)
 			if err != nil {
 				log.Printf("Trouble starting chat for %s: %s", acct.Username(), err.Error())
@@ -154,7 +154,7 @@ func (c *ircchat) Start() error {
 		}
 
 		var client irc.Client
-		client, err = irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address(), c.settings.Port()), c.settings.SSL())
+		client, err = irc.NewClient(fmt.Sprintf("%s:%d", c.settings.Address, c.settings.Port), c.settings.SSL)
 		if err != nil {
 			log.Printf("Error starting chat for %s: %s", c.account.Username(), err.Error())
 			return err
@@ -163,9 +163,9 @@ func (c *ircchat) Start() error {
 		c.client = client
 		err = client.Write(irc.UserMessage(c.account.Username(), "ircwebchathost", "somewhere", "quack"))
 
-		login := c.settings.Login()
+		login := c.settings.Login
 		if err == nil && login.Nick != "" {
-			err = client.Write(irc.NickMessage(c.settings.Login().Nick))
+			err = client.Write(irc.NickMessage(c.settings.Login.Nick))
 			if err == nil && login.Password != "" {
 				err = client.Write(irc.PrivMessage("NickServ", "identify "+login.Password))
 			}
@@ -196,7 +196,7 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 		return errors.New("The chat session is not active or enabled. Check settings")
 	}
 
-	webclient.Write(irc.NickMessage(c.settings.Login().Nick))
+	webclient.Write(irc.NickMessage(c.settings.Login.Nick))
 	//Send open channels to client
 	for _, ch := range c.client.ChannelNames() {
 		webclient.Write(irc.JoinMessage(ch))
@@ -207,8 +207,8 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 		//:tepper.freenode.net 353 goirctest @ #gotest :goirctest @Oooska
 		//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
 		users, _ := c.client.Users(ch)
-		namesRepl := fmt.Sprintf("353 %s = %s :%s", c.settings.Login().Nick, ch, strings.Join(users, " "))
-		namesEndRepl := fmt.Sprintf("366 %s %s", c.settings.Login().Nick, ch)
+		namesRepl := fmt.Sprintf("353 %s = %s :%s", c.settings.Login.Nick, ch, strings.Join(users, " "))
+		namesEndRepl := fmt.Sprintf("366 %s %s", c.settings.Login.Nick, ch)
 		webclient.Write(irc.NewMessage(namesRepl))
 		webclient.Write(irc.NewMessage(namesEndRepl))
 
