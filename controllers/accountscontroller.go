@@ -1,4 +1,4 @@
-package ircwebchat
+package controllers
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oooska/ircwebchat/models"
+	"github.com/oooska/ircwebchat/chat"
 )
 
 type accountsController struct {
@@ -38,7 +38,7 @@ func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	acct, err := models.Authenticate(username, password)
+	acct, err := chat.Authenticate(username, password)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -46,7 +46,7 @@ func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 	}
 
 	//Success, create session and send off to chat
-	sessID, expires, err := models.NewSession(acct)
+	sessID, expires, err := chat.NewSession(acct)
 	if err != nil {
 		log.Printf("Error starting session: %s", err.Error())
 	}
@@ -62,7 +62,7 @@ func (ac accountsController) logout(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	sessID := sessionIDFromCookie(req)
-	models.DeleteSession(sessID)
+	chat.DeleteSession(sessID)
 	deleteSessionCookie(w)
 	http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 }
@@ -86,13 +86,13 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 		errs := account.Validate()
 
 		if len(errs) == 0 {
-			mdlAcct, err := models.Register(account.Username, account.Password, account.Email)
+			mdlAcct, err := chat.Register(account.Username, account.Password, account.Email)
 			if err != nil {
 				errs["Model"] = err
 			} else {
 				//Successfully register. Get this man (or woman) an auth token
 				log.Printf("Successfully registered account: %+v", mdlAcct)
-				sessID, expires, err := models.NewSession(mdlAcct)
+				sessID, expires, err := chat.NewSession(mdlAcct)
 				log.Printf("Registered. Getting account %+v a session: %s", mdlAcct, sessID)
 				if err != nil {
 					log.Printf("Error starting session: %s", err.Error())
@@ -160,14 +160,14 @@ func sessionIDFromCookie(req *http.Request) string {
 	return cookie.Value
 }
 
-func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, error) {
+func validateCookie(w http.ResponseWriter, req *http.Request) (chat.Account, error) {
 	cookie, err := req.Cookie("SessionID")
 	if err != nil {
 		return nil, err
 	}
 
 	sessID := cookie.Value
-	acct, err := models.LookupSession(sessID)
+	acct, err := chat.LookupSession(sessID)
 	if err != nil { //No account associated with this session, delete
 		deleteSessionCookie(w)
 		return nil, err

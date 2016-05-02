@@ -1,4 +1,4 @@
-package ircwebchat
+package controllers
 
 import (
 	"bufio"
@@ -7,8 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/oooska/ircwebchat/models"
-
+	"github.com/oooska/ircwebchat/chat"
 	"golang.org/x/net/websocket"
 )
 
@@ -54,7 +53,7 @@ func webSocketHandler(ws *websocket.Conn) {
 		return
 	}
 	sessionID := strings.TrimSpace(sc.Text())
-	acct, err := models.LookupSession(sessionID)
+	acct, err := chat.LookupSession(sessionID)
 	if err != nil {
 		ws.Write([]byte("Closing connection. Unable to find user: " + err.Error()))
 		ws.Close()
@@ -62,7 +61,7 @@ func webSocketHandler(ws *websocket.Conn) {
 	}
 
 	//Join the irc session that is in progress
-	err = models.JoinChat(acct, sessionID, ws)
+	err = chat.JoinChat(acct, sessionID, ws)
 	ws.Write([]byte("Error: " + err.Error()))
 	ws.Close()
 }

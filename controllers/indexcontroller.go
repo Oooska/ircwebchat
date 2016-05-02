@@ -1,4 +1,4 @@
-package ircwebchat
+package controllers
 
 import (
 	"html/template"

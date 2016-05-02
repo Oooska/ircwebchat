@@ -1,4 +1,4 @@
-package models
+package chat
 
 type Settings struct {
 	accountid int64

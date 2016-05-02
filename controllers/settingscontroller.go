@@ -1,4 +1,4 @@
-package ircwebchat
+package controllers
 
 import (
 	"html/template"
@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/oooska/ircwebchat/models"
+	"github.com/oooska/ircwebchat/chat"
 )
 
 type settingsController struct {
@@ -33,7 +33,7 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 	}
 	var vsettings viewsettings
 
-	mdlSettings, err := models.GetSettings(account)
+	mdlSettings, err := chat.GetSettings(account)
 	if req.Method == "GET" { //Get saved settings, or default
 		if err == nil {
 			//No settings saved yet - use defaults
@@ -41,31 +41,31 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 			vsettings.Settings.Login.Nick = account.Username()
 		} else {
 			vsettings.Settings = mdlSettings
-			vsettings.Settings.Enabled = models.ChatStarted(account)
+			vsettings.Settings.Enabled = chat.ChatStarted(account)
 		}
 	} else if req.Method == "POST" {
-		psettings := models.Settings{}
+		psettings := chat.Settings{}
 		postFormToSettings(req, &psettings)
 		vsettings.Settings = psettings
 		//Update settings
 		//TODO: Simplify modelSettings update functions
-		s, err := models.UpdateSettings(account, psettings)
+		s, err := chat.UpdateSettings(account, psettings)
 		if err != nil {
 			log.Printf("Trouble saving settings: %s", err.Error())
 		} else {
 			//Check to see if we need to start the client
-			if s.Enabled && !models.ChatStarted(account) {
-				err := models.StartChat(account, s)
+			if s.Enabled && !chat.ChatStarted(account) {
+				err := chat.StartChat(account, s)
 				if err != nil {
 					vsettings.ConnectError = err.Error()
 					//Unable to connect, update 'Enabled' to false
 					s.Enabled = false
-					models.UpdateSettings(account, s)
+					chat.UpdateSettings(account, s)
 					vsettings.Settings.Enabled = false
 				}
 				vsettings.Settings = s
-			} else if !s.Enabled && models.ChatStarted(account) {
-				models.StopChat(account)
+			} else if !s.Enabled && chat.ChatStarted(account) {
+				chat.StopChat(account)
 			}
 		}
 	}
@@ -81,15 +81,15 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 //viewsettings represents the
 type viewsettings struct {
 	sitedata
-	Settings     models.Settings
+	Settings     chat.Settings
 	ConnectError string
 }
 
-func getDefaultViewSettings() models.Settings {
-	return models.Settings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
+func getDefaultViewSettings() chat.Settings {
+	return chat.Settings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
 }
 
-func postFormToSettings(req *http.Request, settings *models.Settings) {
+func postFormToSettings(req *http.Request, settings *chat.Settings) {
 	settings.Enabled = parseCheckbox("Enabled", req)
 	settings.Name = req.FormValue("Name")
 	settings.Address = req.FormValue("Address")

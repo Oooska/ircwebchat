@@ -7,17 +7,32 @@ import (
 	_ "net/http/pprof"
 	"os"
 
+	"github.com/oooska/ircwebchat/chat"
+	"github.com/oooska/ircwebchat/controllers"
+
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/oooska/ircwebchat"
 )
 
 //Starts a basic http server with the ircwebchat Handler registered
 func main() {
-	//mux := http.NewServeMux()
 	log.SetFlags(log.Lshortfile | log.Ltime)
 	t := populateTemplates()
 
-	ircwebchat.Register(t, "static/", nil)
+	p, err := chat.NewPersistenceInstance("sqlite3", "my super secret key of dooooooooooooooooooooooooooom")
+	log.Printf("p: %+v", p)
+	if err != nil {
+		log.Fatalf("Recieved error starting DB: %s", err.Error())
+	}
+	err = p.Start("db.sqlite")
+	if err != nil {
+		log.Fatalf("Recieved error starting DB: %s", err.Error())
+	}
+
+	//Start sessions that are enabled
+	chat.StartChats()
+
+	//Register handlers
+	controllers.Register(t, "static/", nil)
 	go log.Fatal(http.ListenAndServe(":8080", nil))
 }
 

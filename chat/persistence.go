@@ -1,4 +1,4 @@
-package models
+package chat
 
 import (
 	"crypto/aes"

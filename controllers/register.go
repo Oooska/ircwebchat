@@ -1,11 +1,8 @@
-package ircwebchat
+package controllers
 
 import (
 	"html/template"
-	"log"
 	"net/http"
-
-	"github.com/oooska/ircwebchat/models"
 
 	"golang.org/x/net/websocket"
 )
@@ -20,16 +17,6 @@ session across multiple browsers.
 func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	if mux == nil {
 		mux = http.DefaultServeMux
-	}
-
-	p, err := models.NewPersistenceInstance("sqlite3", "my super secret key of dooooooooooooooooooooooooooom")
-	log.Printf("p: %+v", p)
-	if err != nil {
-		log.Fatalf("Recieved error starting DB: %s", err.Error())
-	}
-	err = p.Start("db.sqlite")
-	if err != nil {
-		log.Fatalf("Recieved error starting DB: %s", err.Error())
 	}
 
 	//Instantiate our controllers
@@ -50,8 +37,6 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticFiles))))
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
-	//Start sessions that are enabled
-	models.StartChats()
 }
 
 //sitedata is used by all pages on the site
