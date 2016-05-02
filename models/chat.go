@@ -12,37 +12,23 @@ import (
 	"github.com/oooska/irc"
 )
 
-//ChatManager keeps track of active connections to IRC servers
-//This interface will be cleaned up shortly
-type ChatManager interface {
-	StartChats(SettingsManager)
-	StartChat(Account, Settings) error
-	StopChat(Account)
-	JoinChat(acct Account, sessionID string, webclient net.Conn) error
-	ChatStarted(Account) bool
-}
+var chatsMap map[string]chat
 
-//NewChatManager returns a new chat manager to manage communication
-//between IRC servers and webclients
-func NewChatManager() ChatManager {
-	return chatManager{chatmap: make(map[string]chat)}
-}
-
-type chatManager struct {
-	chatmap map[string]chat
+func init() {
+	chatsMap = make(map[string]chat)
 }
 
 //StarChats checks all accounts in the system and connects to the IRC server
 //if the account is enabled.
-func (cm chatManager) StartChats(settings SettingsManager) {
+func StartChats() {
 	accts, err := persistenceInstance.activeAccounts()
 	if err != nil {
 		log.Printf("Unable to start chats: %s", err.Error())
 	}
 	for _, acct := range accts {
-		settings, err := settings.Settings(acct)
+		settings, err := GetSettings(acct)
 		if err == nil && settings.Enabled {
-			err := cm.StartChat(acct, settings)
+			err := StartChat(acct, settings)
 			if err != nil {
 				log.Printf("Trouble starting chat for %s: %s", acct.Username(), err.Error())
 			} else {
@@ -55,27 +41,27 @@ func (cm chatManager) StartChats(settings SettingsManager) {
 }
 
 //StartChat creates a connection to the IRC server for the specified user
-func (cm chatManager) StartChat(acct Account, settings Settings) error {
-	chat, ok := cm.chatmap[acct.Username()]
+func StartChat(acct Account, settings Settings) error {
+	chat, ok := chatsMap[acct.Username()]
 	if ok && chat.Active() {
 		return errors.New("Chat already started for " + acct.Username())
 	}
 	chat = newChat(acct, settings)
-	cm.chatmap[acct.Username()] = chat
+	chatsMap[acct.Username()] = chat
 	return chat.Start()
 }
 
 //StopChat ends the connection to the IRC server for the specified user
-func (cm chatManager) StopChat(acct Account) {
-	chat, ok := cm.chatmap[acct.Username()]
+func StopChat(acct Account) {
+	chat, ok := chatsMap[acct.Username()]
 	if ok && chat.Active() {
 		chat.Stop()
 	}
 }
 
 //JoinChat connects a webclient to the Chat if it is active
-func (cm chatManager) JoinChat(acct Account, sessionID string, webclient net.Conn) error {
-	c, ok := cm.chatmap[acct.Username()]
+func JoinChat(acct Account, sessionID string, webclient net.Conn) error {
+	c, ok := chatsMap[acct.Username()]
 	if !ok {
 		return errors.New("Unable to find chat to join")
 	}
@@ -85,8 +71,8 @@ func (cm chatManager) JoinChat(acct Account, sessionID string, webclient net.Con
 
 //ChatStarted returns true if the chat has started, false if it has not
 //started or does not exist.
-func (cm chatManager) ChatStarted(acct Account) bool {
-	c, ok := cm.chatmap[acct.Username()]
+func ChatStarted(acct Account) bool {
+	c, ok := chatsMap[acct.Username()]
 	if !ok {
 		return false
 	}

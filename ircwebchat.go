@@ -14,11 +14,6 @@ import (
 session across multiple browsers.
 */
 
-var modelAccounts = models.NewAccounts()
-var modelSessions = models.NewSessions()
-var modelSettings = models.NewSettingsManager()
-var chatManager = models.NewChatManager()
-
 //Register mounts an entry point at / on the supplied http mux.
 //staticFiles is the directory that contains the CSS and .js files
 //If no mux is supplied, it will be mounted by the default http.Handler
@@ -56,7 +51,7 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 	mux.Handle("/chat/socket", websocket.Handler(webSocketHandler))
 
 	//Start sessions that are enabled
-	chatManager.StartChats(modelSettings)
+	models.StartChats()
 }
 
 //sitedata is used by all pages on the site

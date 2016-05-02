@@ -38,7 +38,7 @@ func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	acct, err := modelAccounts.Authenticate(username, password)
+	acct, err := models.Authenticate(username, password)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -46,7 +46,7 @@ func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 	}
 
 	//Success, create session and send off to chat
-	sessID, expires, err := modelSessions.Start(acct)
+	sessID, expires, err := models.NewSession(acct)
 	if err != nil {
 		log.Printf("Error starting session: %s", err.Error())
 	}
@@ -62,7 +62,7 @@ func (ac accountsController) logout(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	sessID := sessionIDFromCookie(req)
-	modelSessions.Delete(sessID)
+	models.DeleteSession(sessID)
 	deleteSessionCookie(w)
 	http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 }
@@ -86,13 +86,13 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 		errs := account.Validate()
 
 		if len(errs) == 0 {
-			mdlAcct, err := modelAccounts.Register(account.Username, account.Password, account.Email)
+			mdlAcct, err := models.Register(account.Username, account.Password, account.Email)
 			if err != nil {
 				errs["Model"] = err
 			} else {
 				//Successfully register. Get this man (or woman) an auth token
 				log.Printf("Successfully registered account: %+v", mdlAcct)
-				sessID, expires, err := modelSessions.Start(mdlAcct)
+				sessID, expires, err := models.NewSession(mdlAcct)
 				log.Printf("Registered. Getting account %+v a session: %s", mdlAcct, sessID)
 				if err != nil {
 					log.Printf("Error starting session: %s", err.Error())
@@ -167,7 +167,7 @@ func validateCookie(w http.ResponseWriter, req *http.Request) (models.Account, e
 	}
 
 	sessID := cookie.Value
-	acct, err := modelSessions.Lookup(sessID)
+	acct, err := models.LookupSession(sessID)
 	if err != nil { //No account associated with this session, delete
 		deleteSessionCookie(w)
 		return nil, err

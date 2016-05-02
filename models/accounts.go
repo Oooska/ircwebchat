@@ -8,25 +8,17 @@ import (
 	"strings"
 )
 
-//NewAccounts returns an Accounts
-func NewAccounts() Accounts {
-	accts := accounts{}
-	return accts
-}
-
-//Accounts maintains a list of accounts on the server.
-type Accounts interface {
-	Account(username string) (Account, error)
-	Authenticate(username, pass string) (Account, error)
-	Register(username, password, email string) (Account, error)
-}
-
-type accounts struct {
-	//acctmap map[string]Account
+//Account represents a user account in the system
+type Account interface {
+	ID() int64
+	Username() string
+	Password() string
+	Email() string
+	Active() bool
 }
 
 //Account returns the account with the specified username, or an error if none is found
-func (accs accounts) Account(username string) (Account, error) {
+func GetAccount(username string) (Account, error) {
 	acct, err := persistenceInstance.account(username)
 	if err != nil {
 		return acct, err
@@ -39,7 +31,7 @@ func (accs accounts) Account(username string) (Account, error) {
 
 //Authenticate returns an account if the specified username and password are valid,
 //or an error if the login details are wrong or the account is no longer active.
-func (accs accounts) Authenticate(username, pass string) (Account, error) {
+func Authenticate(username, pass string) (Account, error) {
 	acct, err := persistenceInstance.account(username)
 
 	if err != nil {
@@ -60,7 +52,7 @@ func (accs accounts) Authenticate(username, pass string) (Account, error) {
 
 //Register creates a new account with the specified information.
 //TODO: Proper validation of values
-func (accs accounts) Register(username, password, email string) (Account, error) {
+func Register(username, password, email string) (Account, error) {
 	acct, err := persistenceInstance.account(username)
 	if err == nil {
 		return nil, errors.New("Username already exists.")
@@ -83,15 +75,6 @@ func (accs accounts) Register(username, password, email string) (Account, error)
 	}
 	log.Printf("Registered account: %+v", acct)
 	return acct, nil
-}
-
-//Account represents a user account in the system
-type Account interface {
-	ID() int64
-	Username() string
-	Password() string
-	Email() string
-	Active() bool
 }
 
 func newaccount(id int64, username, password, email string, active bool) account {

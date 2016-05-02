@@ -33,7 +33,7 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 	}
 	var vsettings viewsettings
 
-	mdlSettings, err := modelSettings.Settings(account)
+	mdlSettings, err := models.GetSettings(account)
 	if req.Method == "GET" { //Get saved settings, or default
 		if err == nil {
 			//No settings saved yet - use defaults
@@ -41,31 +41,31 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 			vsettings.Settings.Login.Nick = account.Username()
 		} else {
 			vsettings.Settings = mdlSettings
-			vsettings.Settings.Enabled = chatManager.ChatStarted(account)
+			vsettings.Settings.Enabled = models.ChatStarted(account)
 		}
 	} else if req.Method == "POST" {
 		psettings := models.Settings{}
 		postFormToSettings(req, &psettings)
-
+		vsettings.Settings = psettings
 		//Update settings
 		//TODO: Simplify modelSettings update functions
-		s, err := modelSettings.UpdateSettings(account, psettings)
+		s, err := models.UpdateSettings(account, psettings)
 		if err != nil {
 			log.Printf("Trouble saving settings: %s", err.Error())
 		} else {
 			//Check to see if we need to start the client
-			if s.Enabled && !chatManager.ChatStarted(account) {
-				err := chatManager.StartChat(account, s)
+			if s.Enabled && !models.ChatStarted(account) {
+				err := models.StartChat(account, s)
 				if err != nil {
 					vsettings.ConnectError = err.Error()
 					//Unable to connect, update 'Enabled' to false
 					s.Enabled = false
-					modelSettings.UpdateSettings(account, s)
+					models.UpdateSettings(account, s)
 					vsettings.Settings.Enabled = false
 				}
 				vsettings.Settings = s
-			} else if !s.Enabled && chatManager.ChatStarted(account) {
-				chatManager.StopChat(account)
+			} else if !s.Enabled && models.ChatStarted(account) {
+				models.StopChat(account)
 			}
 		}
 	}

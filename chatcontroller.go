@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/oooska/ircwebchat/models"
+
 	"golang.org/x/net/websocket"
 )
 
@@ -52,7 +54,7 @@ func webSocketHandler(ws *websocket.Conn) {
 		return
 	}
 	sessionID := strings.TrimSpace(sc.Text())
-	acct, err := modelSessions.Lookup(sessionID)
+	acct, err := models.LookupSession(sessionID)
 	if err != nil {
 		ws.Write([]byte("Closing connection. Unable to find user: " + err.Error()))
 		ws.Close()
@@ -60,7 +62,7 @@ func webSocketHandler(ws *websocket.Conn) {
 	}
 
 	//Join the irc session that is in progress
-	err = chatManager.JoinChat(acct, sessionID, ws)
+	err = models.JoinChat(acct, sessionID, ws)
 	ws.Write([]byte("Error: " + err.Error()))
 	ws.Close()
 }
