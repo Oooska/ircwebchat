@@ -19,14 +19,7 @@ func (p *sqlite3) Start(filename string) error {
 	if err != nil {
 		return err
 	}
-	return nil
-}
 
-func (p *sqlite3) Stop() error {
-	return p.db.Close()
-}
-
-func (p *sqlite3) Init() error {
 	for _, sqlStmt := range sqlLiteTables {
 		_, err := p.db.Exec(sqlStmt)
 		if err != nil {
@@ -34,6 +27,10 @@ func (p *sqlite3) Init() error {
 		}
 	}
 	return nil
+}
+
+func (p *sqlite3) Stop() error {
+	return p.db.Close()
 }
 
 func (p *sqlite3) account(username string) (account, error) {

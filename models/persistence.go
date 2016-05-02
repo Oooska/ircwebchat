@@ -28,7 +28,6 @@ func NewPersistenceInstance(driver string, key string) (Persistence, error) {
 type Persistence interface {
 	Start(filename string) error //Opens db and connects to it
 	Stop() error                 //Closes db
-	Init() error                 //Creates tables
 
 	PersistentAccounts
 	PersistentSession

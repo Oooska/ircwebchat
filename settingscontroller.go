@@ -35,12 +35,12 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 
 	mdlSettings, err := modelSettings.Settings(account)
 	if req.Method == "GET" { //Get saved settings, or default
-		if err != nil {
+		if err == nil {
 			//No settings saved yet - use defaults
-			vsettings = getDefaultViewSettings()
+			vsettings.Settings = getDefaultViewSettings()
 			vsettings.Settings.Login.Nick = account.Username()
 		} else {
-			vsettings = modelSettingsToView(mdlSettings)
+			vsettings.Settings = mdlSettings
 			vsettings.Settings.Enabled = chatManager.ChatStarted(account)
 		}
 	} else if req.Method == "POST" {
@@ -63,7 +63,7 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 					modelSettings.UpdateSettings(account, s)
 					vsettings.Settings.Enabled = false
 				}
-				vsettings = modelSettingsToView(s)
+				vsettings.Settings = s
 			} else if !s.Enabled && chatManager.ChatStarted(account) {
 				chatManager.StopChat(account)
 			}
@@ -85,23 +85,8 @@ type viewsettings struct {
 	ConnectError string
 }
 
-func getDefaultViewSettings() viewsettings {
-	return viewsettings{Settings: models.Settings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}}
-}
-
-func modelSettingsToView(mdlSettings models.Settings) viewsettings {
-	vs := viewsettings{}
-
-	vs.Settings.Enabled = mdlSettings.Enabled
-	vs.Settings.Name = mdlSettings.Name
-	vs.Settings.Address = mdlSettings.Address
-	vs.Settings.Port = mdlSettings.Port
-	vs.Settings.SSL = mdlSettings.SSL
-	vs.Settings.Login.Nick = mdlSettings.Login.Nick
-	vs.Settings.Login.Password = mdlSettings.Login.Password
-	vs.Settings.AltLogin.Nick = mdlSettings.AltLogin.Nick
-	vs.Settings.AltLogin.Password = mdlSettings.AltLogin.Password
-	return vs
+func getDefaultViewSettings() models.Settings {
+	return models.Settings{Enabled: true, Name: "Freenode", Address: "irc.freenode.net", Port: 6667, SSL: false}
 }
 
 func postFormToSettings(req *http.Request, settings *models.Settings) {
