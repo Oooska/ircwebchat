@@ -19,7 +19,6 @@ func main() {
 	t := populateTemplates()
 
 	p, err := chat.NewPersistenceInstance("sqlite3", "my super secret key of dooooooooooooooooooooooooooom")
-	log.Printf("p: %+v", p)
 	if err != nil {
 		log.Fatalf("Recieved error starting DB: %s", err.Error())
 	}
