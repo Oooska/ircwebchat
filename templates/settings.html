@@ -6,7 +6,7 @@
   <body>
       {{template "_header.html" .}}
       <h3>Server:</h3>
-      <form action="/settings" method="POST">
+      <form action="/settings/" method="POST">
           <div><label>Connect:</label><input type="checkbox" name="Enabled" {{if .Settings.Enabled}}checked{{end}} /></div>
           <div><label>Name:</label><input type="text" name="Name" value="{{.Settings.Name}}"/></div>
           <div>

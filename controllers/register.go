@@ -27,10 +27,9 @@ func Register(t *template.Template, staticFiles string, mux *http.ServeMux) {
 
 	//Associate routes with our controllers
 	mux.Handle("/", indexController)
-	mux.Handle("/settings", settingsController)
-	mux.Handle("/chat", chatController)
-
-	mux.Handle("/register", accountsController)
+	mux.Handle("/settings/", settingsController)
+	mux.Handle("/chat/", chatController)
+	mux.Handle("/register/", accountsController)
 	mux.Handle("/login", accountsController)
 	mux.Handle("/logout", accountsController)
 

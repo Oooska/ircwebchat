@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"log"
 	"time"
 )
 
@@ -23,13 +22,11 @@ func NewSession(acct Account) (string, time.Time, error) {
 	hash := generateHash(acct.Username(), acct.Password())
 	s := session{id: hash, account: acct, expires: time.Now().Add(tTL)}
 	err := persistenceInstance.saveSession(s)
-	log.Printf("Started session: %+v", s)
 	return hash, s.expires, err
 }
 
 //Delete removes the specified sessionID
 func DeleteSession(id string) error {
-	log.Printf("Deleting session %s", id)
 	return persistenceInstance.deleteSession(id)
 }
 
@@ -47,7 +44,6 @@ func LookupSession(id string) (Account, error) {
 		return nil, errors.New("Session Expired")
 	}
 
-	log.Printf("Looked up session %s, returning session %+v", id, s)
 	return s.account, nil
 }
 

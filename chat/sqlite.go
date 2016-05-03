@@ -119,7 +119,6 @@ func (p *sqlite3) session(id string) (session, error) {
 	acct = newaccount(accountid, name, password, email, active)
 	sess = newsession(sessionID, acct, expires)
 
-	log.Printf("Requested session for ID %s, retrieved: %+v", id, sess)
 	return sess, err
 }
 
@@ -131,7 +130,6 @@ func (p *sqlite3) saveSession(s session) error {
 	}
 	_, err = stmt.Exec(s.account.ID(), s.id, s.expires)
 	stmt.Close()
-	log.Printf("Saving session: %+v", s)
 	return err
 }
 
@@ -142,7 +140,6 @@ func (p *sqlite3) deleteSession(id string) error {
 	}
 	_, err = stmt.Exec(id)
 	stmt.Close()
-	log.Printf("Deleting session %s", id)
 	return err
 }
 

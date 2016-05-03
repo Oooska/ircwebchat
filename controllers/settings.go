@@ -14,7 +14,7 @@ type settingsController struct {
 }
 
 func (sc settingsController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path != "/settings" {
+	if req.URL.Path != "/settings/" {
 		w.WriteHeader(404)
 		return
 	}

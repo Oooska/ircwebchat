@@ -69,6 +69,11 @@ func JoinChat(acct Account, sessionID string, webclient net.Conn) error {
 	return err
 }
 
+//ChatLogs returns the last 200 messages in the channel from before the specified timestamp
+func ChatLogs(acct Account, ch string, timestamp time.Time) ([]irc.Message, error) {
+	return persistenceInstance.messages(acct, ch, timestamp, 200)
+}
+
 //ChatStarted returns true if the chat has started, false if it has not
 //started or does not exist.
 func ChatStarted(acct Account) bool {

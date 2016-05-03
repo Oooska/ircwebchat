@@ -16,7 +16,7 @@ type accountsController struct {
 }
 
 func (ac accountsController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/register" {
+	if req.URL.Path == "/register/" {
 		//Bring up the registration page
 		ac.register(w, req)
 	} else if req.URL.Path == "/login" && req.Method == "POST" {

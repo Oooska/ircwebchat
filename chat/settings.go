@@ -30,6 +30,7 @@ func GetSettings(a Account) (Settings, error) {
 //StartChat or StopChat will be called if the account becomes enabled/disabled
 func UpdateSettings(a Account, newsettings Settings) (Settings, error) {
 	initSettings, err := persistenceInstance.settings(a)
+
 	if err == nil && initSettings.Enabled && !newsettings.Enabled {
 		StopChat(a)
 	} else if (err == nil && !initSettings.Enabled && newsettings.Enabled) ||
