@@ -13,7 +13,7 @@ type sqlite3 struct {
 	secretkey string
 }
 
-func (p *sqlite3) Start(filename string) error {
+func (p *sqlite3) start(filename string) error {
 	var err error
 	p.db, err = sql.Open("sqlite3", filename)
 	if err != nil {

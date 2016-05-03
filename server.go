@@ -18,11 +18,7 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.Ltime)
 	t := populateTemplates()
 
-	p, err := chat.NewPersistenceInstance("sqlite3", "my super secret key of dooooooooooooooooooooooooooom")
-	if err != nil {
-		log.Fatalf("Recieved error starting DB: %s", err.Error())
-	}
-	err = p.Start("db.sqlite")
+	err := chat.SetupPersistence("sqlite3", "my super secret key of dooooooooooooooooooooooooooom", "db.sqlite")
 	if err != nil {
 		log.Fatalf("Recieved error starting DB: %s", err.Error())
 	}

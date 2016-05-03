@@ -14,19 +14,19 @@ import (
 
 var persistenceInstance Persistence
 
-func NewPersistenceInstance(driver string, key string) (Persistence, error) {
-	var p Persistence
+func SetupPersistence(driver string, key string, filename string) error {
 	if driver == "sqlite3" {
 		persistenceInstance = &sqlite3{secretkey: key}
-		return persistenceInstance, nil
+		err := persistenceInstance.start(filename)
+		return err
 	}
 
 	//TODO: Support an in-memory persistence object
-	return p, errors.New("SQL Driver not supported")
+	return errors.New("SQL Driver not supported")
 }
 
 type Persistence interface {
-	Start(filename string) error //Opens db and connects to it
+	start(filename string) error //Opens db and connects to it
 	Stop() error                 //Closes db
 
 	PersistentAccounts
