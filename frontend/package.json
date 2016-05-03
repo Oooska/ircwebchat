@@ -7,12 +7,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "scripts": {
-    "build": "browserify -x react -x react-dom -t [ babelify --presets [ react ] ] index.js -o ../server/static/index.js",
-    "watch": "watchify -x react -x react-dom -t [ babelify --presets [ react ] ] index.js -o ../server/static/index.js"
+    "build": "browserify -x react -x react-dom -t [ babelify --presets [ react ] ] index.js -o ../static/index.js",
+    "watch": "watchify -x react -x react-dom -t [ babelify --presets [ react ] ] index.js -o ../static/index.js"
   },
   "repository": {
     "type": "git",
-    "url": "github.com/oooska/ircwebchat-frontend"
+    "url": "github.com/oooska/ircwebchat"
   },
   "author": "Oooska",
   "license": "MIT",
