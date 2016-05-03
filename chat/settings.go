@@ -27,10 +27,19 @@ func GetSettings(a Account) (Settings, error) {
 }
 
 //UpdateSettings updates the settings for the specified account
-func UpdateSettings(a Account, settings Settings) (Settings, error) {
-	settings.accountid = a.ID()
-	err := persistenceInstance.saveSettings(settings)
-	return settings, err
+//StartChat or StopChat will be called if the account becomes enabled/disabled
+func UpdateSettings(a Account, newsettings Settings) (Settings, error) {
+	initSettings, err := persistenceInstance.settings(a)
+	if err == nil && initSettings.Enabled && !newsettings.Enabled {
+		StopChat(a)
+	} else if (err == nil && !initSettings.Enabled && newsettings.Enabled) ||
+		(err != nil && newsettings.Enabled) {
+		StartChat(a, newsettings)
+	}
+
+	newsettings.accountid = a.ID()
+	err = persistenceInstance.saveSettings(newsettings)
+	return newsettings, err
 }
 
 func newsettings(accountid int64, enabled bool, name, address string, port int, ssl bool, login IRCLogin, altlogin IRCLogin) Settings {
