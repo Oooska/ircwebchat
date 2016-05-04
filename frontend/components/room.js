@@ -1,11 +1,13 @@
 var MessageList = require('./messageList')
 var NickList = require('./nickList')
 
+var IRC = require('../irc')
+
 var Room = React.createClass({
 	propTypes: {
 			name: React.PropTypes.string.isRequired,
 			users: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
-			messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
+			messages: React.PropTypes.arrayOf(React.PropTypes.instanceOf(IRC.Message)).isRequired
 	},
 
 	render: function(){

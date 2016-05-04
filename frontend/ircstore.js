@@ -4,258 +4,237 @@ var IRC = require("./irc")
 var _callbacks = []; //Array of callbacks
 var websocket;
 
-var SERVER_CH = "Server";
+var SERVER_CH = "Server Messages";
 /* The IRCStore is the interface between the react components, and the actual datastructures
 	that communicate with the server and manage the client state.
 
 */
-var IRCStore = {
+class IRCStore {
+	constructor(){
+		this.websocket = undefined;
+		this.RoomsMgr = new RoomsManager();
+		this._callbacks = []
+	}
+	
 	//Registers a change listener. 
-	addChangeListener: function(callback){
-		_callbacks.push(callback);
-	},
+	AddChangeListener(callback){
+		this._callbacks.push(callback);
+	}
 
 	//Create a new websocket at the provided address.
-	start: function(wsaddr){
-        websocket = new WebSocket("ws://"+wsaddr);
-        websocket.onmessage = this._recieveMessage;
-        websocket.onclose = this._socketClose;
-		
+	Start(wsaddr){
+        this.websocket = new WebSocket("ws://"+wsaddr);
+        this.websocket.onmessage = this._recieveMessage.bind(this);
+        this.websocket.onclose = this._socketClose.bind(this);
+		var websocket = this.websocket;
 		//Send sessionid over ws:
-		websocket.onopen = function(){
+		this.websocket.onopen = function(){
 			var sessionID = getCookie("SessionID")
 			console.log("Session ID: "+sessionID)
 			websocket.send(sessionID+"\r\n")
 		};
-	},
+	}
 
-	sendMessage: function(msg){
+	SendMessage(msg){
 		//TODO: Parse message depending on context
-		websocket.send(msg+"\r\n");
-		Rooms.addMessage(msg);
-		updateCallbacks(Rooms.asArray());
-	},
+		this.websocket.send(msg.trim()+"\r\n");
+		this.RoomsMgr.AddMessage(new IRC.Message(msg.trim()));
+		this.updateCallbacks(this.RoomsMgr.Rooms());
+	}
 
-	_recieveMessage: function(e){
-		Rooms.addMessage(e.data);
-		updateCallbacks(Rooms.asArray());
-	},
+	Rooms(){
+		return this.RoomsMgr.Rooms();
+	}
 
-	_socketClose: function(e){
+	_recieveMessage(e){
+		this.RoomsMgr.AddMessage(new IRC.Message(e.data.trim()));
+		this.updateCallbacks(this.RoomsMgr.Rooms());
+	}
+
+	_socketClose(e){
 		console.log("Socket closed: ", e)
-		Rooms.addMessage("Websocket to webserver has closed.")
-		updateCallbacks(Rooms.asArray());
-	},
+		this.RoomsMgr.AddMessage(new IRC.Message("Websocket to webserver has closed."))
+		this.updateCallbacks(this.RoomsMgr.Rooms());
+	}
 
-
+	updateCallbacks(rooms){
+		for(var k=0; k < this._callbacks.length; k++){
+			this._callbacks[k](rooms);
+		}
+	}
 }
 
-function updateCallbacks(rooms){
-	for(var k=0; k < _callbacks.length; k++)
-		_callbacks[k](rooms)
-}
-
-
-
-
-//The Rooms variable holds the data structure that maintains the current client status.
-//TODO: Build a proper ES6 class to manage this. 
-//TODO: Rename Rooms to something more appropriate.
-/*
-
-The addMessage() function will eventually parse the message and act appropriately
-to update the state of the irc client. //TODO: Most of the previous sentence.
-
-The data structure mirrors the react props.
-//TODO: 
-{
-	"#roomname1": {
-		name : "#roomname1", 
-		users: ["user1", "user2"], 
-		messages: ["string1", "string2"]
-		updating_353: bool //bool representing whether the room is actively getting a new user list from the server
-	},
-
-	"#roomname2": {
-		name : "#roomname2", 
-		users: ["user2", "user3"], 
-		messages: ["string11", "string222"]
-	},
-
-	"user2": {
-		name : "user2", 
-		users: ["user2"], 
-		messages: ["string1", "string2"]
-	},
-}
-
-*/
-var ERR_ROOM_404 = "The specified room does not exist."
-
-var Rooms = {
-	mynick: "",
-	rooms: { "Server": {name : SERVER_CH, users: ["irc server"], messages: []}},
-
-	addMessage: function(rawmessage){
-		rawmessage = rawmessage.trim();
-		var pMessage = new IRC.Message(rawmessage);
-		console.log("parsed message: ", rawmessage, pMessage);
-
-		var room = SERVER_CH;
-		var output = rawmessage;
-		
-
-		if(pMessage.Command() == "PRIVMSG" && pMessage.Args().length >= 2){
-			room = pMessage.Args()[0];
-			console.log("Recieved privmsg for recipient: ", room)
-			if(pMessage.Prefix()){
-				if(room[0] != '#'){ //Not a room? Privmsg to a user, room is rheir nick
-					room = pMessage.Nick();
-				}
-				output = pMessage.Nick() +": "+pMessage.Args()[1];
-			} else {
-				output = this.mynick + ": "+pMessage.Args()[1];
+class RoomsManager {
+	constructor(){
+		this.mynick = undefined;
+		this.rooms = {};
+		this.roomGettingUpdates = []; //Tracks 353/366 commands
+		this._createRoom(SERVER_CH);
+	}
+	
+	//Adds a message to the rooms manager, creating a room if it does not exist
+	AddMessage(message){
+		console.log("Adding message: ", message);
+		if(message.Command() === "NICK"){
+			if(message.Prefix() === null){
+				this.mynick = message.Args()[0];
+			} else if(message.Args().length >= 1){
+				this._changeNick(message.Nick(), message.Args()[0]);
 			}
+			return;
+		}
 		
-
-		} else if (pMessage.Command() == "JOIN" && pMessage.Args().length >= 1){
-			room = pMessage.Args()[0];
-			if(pMessage.Prefix() == null){ 
-				//The user joined a channel
-				if(!this.roomExists(room))
-					this.createRoom(room);
-			} else { //Someone else joined a channel
-				this.addUser(room, pMessage.Nick());
-				output = ">>> "+pMessage.Nick()+" has joined the channel.";
+		if(message.Command() === "PRIVMSG"){
+			this._addPrivMessage(message);
+			return;
+		}
+		
+		if(message.Command() === "JOIN"){
+			console.log("JOIN command...")
+			var room = message.Args()[0]
+			if(room === undefined)
+				return; //Malformed JOIN request
+			
+			if(!this.RoomExists(room)) 
+				this._createRoom(room);
+			if(message.Nick() !== null){
+				this.Room(room).AddUser(message.Nick());
+				console.log("Added user to room")
+			} else{ // - user just joined a room - expecting 353 command for this room
+				this.roomGettingUpdates.push(room);
+				console.log("We're joining the room, adding ", room, " to roomGettingUpdates")
 			}
+			return;
+		}
 		
-
-		} else if(pMessage.Command() == "PART" && pMessage.Args().length >= 1){
-			room = pMessage.Args()[0];
-			this.removeUser(room, pMessage.Nick());
-			output = "<<< "+pMessage.Nick()+" has left the channel.";
-		
-
-		} else if(pMessage.Command() == "NICK"){
-			//You/server sent a nick command on your behalf
-			if(pMessage.Prefix() == null){
-				if(pMessage.Args()[0])
-					this.mynick = pMessage.Args()[0];
-			} else if(pMessage.Nick() != null && pMessage.Args()[0]){
-				//Someone else is changing their nick
-				this.changeNick(pMessage.Nick(), pMessage.Args()[0]);
-			}
-
-
-		}else if(pMessage.Command() == "353") { //Response to /names or /join : 
-			room = pMessage.Args()[2];
-			if(pMessage.Args()[3]){
-				var users = pMessage.Args()[3].split(" "); 
-				var roomObj = this.getRoom(room);
+		if(message.Command() === "PART"){
+			var room = message.Args()[0]
+			if(room === undefined)
+				return; //Malformed PART request
 				
-				//TODO: roomObj should be created if its u ndefined
-				if(roomObj !== undefined) {
-					if(roomObj.updating_353 === undefined || !roomObj.updating_353){
-						//Server is providing a fresh list of users, clear out old list
-						roomObj.updating_353 = true;
-						this.clearUsers(room);
-					}
+			if(message.Nick() === null){
+				//User parting channel
+				this.RemoveRoom(room);
+			} else if(this.RoomExists(room)){
+				this.Room(room).RemoveUser(user);
+			}
+			return;
+		}
+		
+		if(message.Command() === "353"){
+			//353 command tells client what users are in a channel
+			//:tepper.freenode.net 353 nick @ #gotest :goirctest @Oooska
+			var room = message.Args()[2];
+			var users = message.Args()[3];
+			
+			if(room === undefined || users === undefined){
+				console.log("Recieved malformed 353 request")
+				return; //Malformed 353 command		
+			}
 					
-					for(var k = 0; k < users.length; k++){
-						this.addUser(room, users[k]);
-					}
+			console.log("Expecting user info for: ", this.roomGettingUpdates)		
+			if(this.roomGettingUpdates.indexOf(room) >= 0){
+				console.log("Filling in user list for ", room,": ", users);
+				users = users.split(" ");
+				console.log("Adding users... list: ", users)
+				for(var k = 0; k < users.length; k++){
+					console.log("Adding user ", users[k])
+					this._addUser(room, users[k]);
 				}
 			}
-		} else if(pMessage.Command() == "366"){ //The end of /names
-			//Notifying us the users list is up to date.
-			room = pMessage.Args()[1];
-			if(room && this.getRoom(room)){
-				//We are done updating the user list
-				this.getRoom(room).updating_353 = false;
+			
+			return;
+		}
+		
+		if(message.Command() === "366"){
+			//363 command tells client we're done updating names list
+			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
+			var room = message.Args()[1];
+			if(room !== undefined){
+				var i = this.roomGettingUpdates.indexOf(room)
+				if(i >= 0){
+					this.roomGettingUpdates.splice(i, 1);
+				}
 			}
+			
+			return;
 		}
-
-		if(!this.roomExists(room)){
-			console.log("Room "+room+" doesn't exist... creating")
-			this.createRoom(room);
+		
+		//Else - some other message. Send it to SERVER_CH to notify user
+		this.rooms[SERVER_CH].AddMessage(message);
+		
+	}
+	
+	_createRoom(name){
+		console.log("_createRoom(",name,") called.")
+		if(this.RoomExists(name)) 
+			return;
+		console.log("Does not exist... creating")
+		this.rooms[name] = new IRC.Room(name);
+	}
+	
+	RemoveRoom(name){
+		this.rooms[name] = undefined;
+	}
+	
+	_addUser(roomName, user){
+		var room = this.rooms[roomName];
+		if(room !== undefined){
+			room.AddUser(user);
 		}
-
-		this._addMessageToRoom(room, output);
-	},
-
-	asArray: function(){
+	}
+	
+	RemoveUser(roomName, user){
+		
+	}
+	
+	RoomExists(name){
+		return this.rooms[name] !== undefined;
+	}
+	
+	Room(room){
+		return this.rooms[room]
+	}
+	
+	//Returns a list of Rooms
+	Rooms(){
 		var arr = [];
 		var keys = Object.keys(this.rooms);
 		for(var k = 0; k < keys.length; k++)
 			arr.push(this.rooms[keys[k]]);
 
 		return arr;
-	},
-
-	roomExists: function(room){
-		return this.rooms[room] !== undefined;
-	},
-
-	createRoom: function(room, users) {
-		if(this.rooms[room] !== undefined)
-			return;
-
-		if(users === null || users === undefined)
-			users = [];
-
-		this.rooms[room] = {
-			name: room, 
-			users: users, 
-			messages: []
-		};
-	}, 
-
-	removeRoom: function(room){
-		this.rooms[room] = undefined;
-	},
-
-	getRoom: function(room){
-		return this.rooms[room];
-	},
-
-
-	addUser: function(room, user){
-		if(this.rooms[room] === undefined)
-			throw ERR_ROOM_404;
-
-		if(this.rooms[room].users.indexOf(user) < 0)
-			this.rooms[room].users.push(user);
-	},
-
-	//clearUsers removes all users from the room
-	clearUsers: function(room){
-		this.rooms[room].users = [];
-	},
-
-	//removeUser removes the user from the room.
-	removeUser: function(room, user){
-		if(this.rooms[room] === undefined)
-			throw ERR_ROOM_404;
-
-		var index = this.rooms[room].users.indexOf(user);
-		if(index >= 0){
-			this.rooms[room].users.splice(index, 1);
-		}
-
-	},
-
-	changeNick: function(oldnick, newnick){
-		console.log(oldnick+" changed their name to "+newnick);
-		//TODO: Change nick in all channels it is found in
-	},
-
-	//Adds the specified message to the end of the room's messagelist.
-	_addMessageToRoom: function(room, message){
-		this.rooms[room].messages.push(message);	
-	},
-
+	}
+	
+	_changeNick(oldnick, newnick){
+		console.log("TODO: ", oldnick, " changed their name to ", newnick)
+		
+	}
+	
+	_addPrivMessage(message){
+		//:nick PRIVMSG #channel :Message... (from remoteuser to channel)
+		//:nick PRIVMSG user :Message... (from remoteuser to user)
+		//PRIVMSG #channel/user :Message (from user to channel/remoteuser)
+		var roomName;
+		if(message.Nick() !== undefined) //Coming from someone else - roomname is either channel or user that sent it
+			roomName = message.Args()[0] === this.mynick ? message.Nick() : message.Args()[0];
+		else //Outgoing message from our user
+			roomName = message.Args()[0];
+		
+		if(roomName === undefined)
+			return; //Invalid privmsg
+		
+		if(!this.RoomExists(roomName))
+			this._createRoom(roomName);
+			
+		this.rooms[roomName].AddMessage(message);
+	}
 }
 
+
+
+
+//Helper function that returns the value of the specified cookie name
 function getCookie(name) {
   var value = "; " + document.cookie;
   var parts = value.split("; " + name + "=");
@@ -263,4 +242,4 @@ function getCookie(name) {
 }
 
 
-module.exports = IRCStore;
+module.exports = new IRCStore();

@@ -1,6 +1,8 @@
+var IRC = require('../irc')
+
 var MessageList = React.createClass({
 	propTypes: {
-		messages: React.PropTypes.arrayOf(React.PropTypes.string).isRequired
+		messages: React.PropTypes.arrayOf(React.PropTypes.instanceOf(IRC.Message)).isRequired
 	},
 
 	componentWillUpdate: function(){
@@ -19,8 +21,11 @@ var MessageList = React.createClass({
 
 	render: function(){
 		var rows = [];
-		for(var k=0; k < this.props.messages.length; k++)
-			rows.push( <span key={k}>{this.props.messages[k]}</span> )
+		for(var k=0; k < this.props.messages.length; k++){
+			rows.push( <span key={k}>
+				{this.props.messages[k].Nick() === null ? "You" : this.props.messages[k].Nick()}: 
+				{this.props.messages[k].Args()[1]}</span> )
+		}
 		return (
 			<div className="messagelist col-xs-10">
 				{rows}

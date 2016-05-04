@@ -2,16 +2,20 @@
 //[9:fullstring, 1: nick, 2: user, 3: host]
 var userRegex = /(\S+)!(\S+)@(\S+)/
 
+//Message represents an IRC message. The constructor parses the message
+//and provides accessor methods to the various fields of a message
 class Message{
     constructor(msg){
         this.message = msg;
         var rval = parseMessage(msg);
         this.prefix = rval.prefix;
-        this.nick = rval.prefix;
+        this.nick = rval.nick;
         this.user = rval.user;
         this.host = rval.host;
         this.command = rval.command;
         this.args = rval.args;
+        
+        console.log("Message constructor. New Message:",this," rval: ", rval);
     }
 
     Prefix() {
@@ -27,7 +31,7 @@ class Message{
     }
     
     Host() {
-        return this.Host;
+        return this.host;
     }
     
     Command() {
@@ -43,6 +47,46 @@ class Message{
     }
 }
 
+//Room represents an IRC channel and message queue.
+class Room{
+    constructor(name){
+        this.name = name
+        this.users = []
+        this.messages = []
+    }
+    
+    AddMessage(msg){
+        this.messages.push(msg)
+    }
+    
+    Name(){
+        return this.name;
+    }
+    
+    Messages(){ 
+        return this.messages;
+    }
+    
+    Users(){
+        return this.users;
+    }
+    
+    AddUser(user){
+        //TODO: Add users more efficiently
+        this.users.push(user)
+        this.users.sort()
+    }
+    
+    RemoveUser(user){
+        var index = this.users.indexOf(user)
+        if(index >= 0){
+            this.users.splice(index, 1)
+        }
+    }
+}
+
+
+//Helper function to parse a raw irc line
 function parseMessage(message){
 	var retval = {
 		prefix: null, //nick!~user@host
@@ -101,6 +145,7 @@ function parseMessage(message){
 	return retval;
 }
 
+//Helper function to parse the prefix of a raw irc line
 function parsePrefix(prefix){
 	var prefixarray = prefix.match(userRegex);
 
@@ -115,6 +160,7 @@ function parsePrefix(prefix){
 }
 
 var IRC = {
+    Room: Room,
     Message: Message
 }
 
