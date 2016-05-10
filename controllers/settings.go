@@ -28,6 +28,7 @@ func (sc settingsController) settings(w http.ResponseWriter, req *http.Request) 
 	account, err := validateCookie(w, req)
 	if err != nil {
 		//Not logged in - get user out of here
+		log.Printf("Error validating cookie: " + err.Error())
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}

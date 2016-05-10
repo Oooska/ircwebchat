@@ -30,6 +30,7 @@ func (ac accountsController) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	}
 }
 
+//Login handler authenticates a username/password form and redirects to /chat/ if successful
 func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 	username := req.FormValue("Username")
 	password := req.FormValue("Password")
@@ -46,19 +47,19 @@ func (ac accountsController) login(w http.ResponseWriter, req *http.Request) {
 	}
 
 	//Success, create session and send off to chat
-	sessID, expires, err := chat.NewSession(acct)
+	err = setSessionCookie(w, acct)
 	if err != nil {
 		log.Printf("Error starting session: %s", err.Error())
 	}
-	setSessionCookie(w, sessID, expires)
-	http.Redirect(w, req, "/chat", http.StatusFound)
+	http.Redirect(w, req, "/chat/", http.StatusFound)
 }
 
+//Logout handler removes the sessionID from the database and redirects to the index
 func (ac accountsController) logout(w http.ResponseWriter, req *http.Request) {
 	_, err := validateCookie(w, req)
 	if err != nil {
 		//Not logged in. No signing out to be done.
-		http.Redirect(w, req, "/chat", http.StatusFound)
+		http.Redirect(w, req, "/", http.StatusFound)
 		return
 	}
 	sessID := sessionIDFromCookie(req)
@@ -67,13 +68,16 @@ func (ac accountsController) logout(w http.ResponseWriter, req *http.Request) {
 	http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 }
 
+//Register handler processes account registrations.
+//If the user is already logged in, it redirects
 func (ac accountsController) register(w http.ResponseWriter, req *http.Request) {
 	_, err := validateCookie(w, req)
 	if err == nil {
-		//Account exists - no reason to be here...
+		//Account already logged in - no need to be here
 		http.Redirect(w, req, "/", http.StatusTemporaryRedirect)
 		return
 	}
+	log.Println("In register controller...")
 	account := viewaccount{}
 	account.Title = "IRC Web Chat - Register"
 	account.Active = "Register"
@@ -91,20 +95,17 @@ func (ac accountsController) register(w http.ResponseWriter, req *http.Request) 
 				errs["Model"] = err
 			} else {
 				//Successfully register. Get this man (or woman) an auth token
-				log.Printf("Successfully registered account: %+v", mdlAcct)
-				sessID, expires, err := chat.NewSession(mdlAcct)
-				log.Printf("Registered. Getting account %+v a session: %s", mdlAcct, sessID)
+				err = setSessionCookie(w, mdlAcct)
 				if err != nil {
-					log.Printf("Error starting session: %s", err.Error())
+					w.Write([]byte("Successfully registered, but trouble setting cookie: " + err.Error()))
+					return
 				}
-				setSessionCookie(w, sessID, expires)
+
 				http.Redirect(w, req, "/settings", http.StatusFound)
 				return
 			}
 		}
-
 	}
-
 	ac.template.Execute(w, account)
 }
 
@@ -140,14 +141,19 @@ func (a *viewaccount) Validate() map[string]error {
 	return errs
 }
 
-func setSessionCookie(w http.ResponseWriter, hash string, expires time.Time) {
-	c := http.Cookie{Name: "SessionID", Value: hash, Expires: expires}
+func setSessionCookie(w http.ResponseWriter, acct chat.Account) error {
+	sessID, expires, err := chat.NewSession(acct)
+	if err != nil {
+		return err
+	}
+	c := http.Cookie{Name: "SessionID", Value: sessID, Expires: expires, Path: "/"}
 	http.SetCookie(w, &c)
-
+	log.Printf("Cookie set with session %s", sessID)
+	return nil
 }
 
 func deleteSessionCookie(w http.ResponseWriter) {
-	c := http.Cookie{Name: "SessionID", Value: "", Expires: time.Unix(0, 0)}
+	c := http.Cookie{Name: "SessionID", Value: "", Expires: time.Unix(0, 0), Path: "/"}
 	http.SetCookie(w, &c)
 }
 
@@ -161,12 +167,12 @@ func sessionIDFromCookie(req *http.Request) string {
 }
 
 func validateCookie(w http.ResponseWriter, req *http.Request) (chat.Account, error) {
-	cookie, err := req.Cookie("SessionID")
-	if err != nil {
-		return nil, err
+	sessID := sessionIDFromCookie(req)
+	log.Printf("Validating session: '%s'", sessID)
+	if sessID == "" {
+		log.Printf("Unable to validate empty cookie...")
+		return nil, errors.New("Empty cookie")
 	}
-
-	sessID := cookie.Value
 	acct, err := chat.LookupSession(sessID)
 	if err != nil { //No account associated with this session, delete
 		deleteSessionCookie(w)

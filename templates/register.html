@@ -7,7 +7,7 @@
       {{template "_header.html" .}}
 
       <h3>Register</h3>
-      <form action="/register" method="POST">
+      <form action="/register/" method="POST">
         <div><span>{{index .Errors "Model"}}</span></div>
         <div><label>Username: <input type="text" name="Username" value="{{.Username}}"/><span>{{index .Errors "Username"}}</span></label></div>
         <div><label>Email address: <input type="text" name="Email" value="{{.Email}}"/><span>{{index .Errors "Email"}}</span></label></div>
