@@ -203,17 +203,12 @@ func (c ircchat) Join(sessionID string, webclient irc.Conn) error {
 		webclient.Write(irc.NewMessage(namesRepl))
 		webclient.Write(irc.NewMessage(namesEndRepl))
 
-		/*for _, msg := range c.client.Messages(ch) {
-			webclient.Write(irc.NewMessage(msg))
-		}*/
-		for _, ch := range c.client.ChannelNames() {
-			messages, err := persistenceInstance.messages(c.account, ch, time.Now(), 200)
-			if err != nil {
-				log.Printf("Error retrieving message logs: %s", err.Error())
-			}
-			for _, msg := range messages {
-				webclient.Write(msg)
-			}
+		messages, err := persistenceInstance.messages(c.account, ch, time.Now(), 200)
+		if err != nil {
+			log.Printf("Error retrieving message logs: %s", err.Error())
+		}
+		for _, msg := range messages {
+			webclient.Write(msg)
 		}
 
 	}

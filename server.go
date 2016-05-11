@@ -28,6 +28,14 @@ func main() {
 
 	//Register handlers
 	controllers.Register(t, "static/", nil)
+
+	/*go func() {
+		log.Printf("Starting TLS server on :8443")
+		log.Fatal(http.ListenAndServeTLS(":8443", "tls/fullchain.pem", "tls/privkey.pem", nil))
+
+	}()*/
+
+	log.Printf("Starting http server on :8080")
 	go log.Fatal(http.ListenAndServe(":8080", nil))
 }
 

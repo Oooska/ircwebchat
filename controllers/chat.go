@@ -64,7 +64,6 @@ func (cc chatController) history(acct chat.Account, w http.ResponseWriter, req *
 		return
 	}
 	w.Header().Add("Content-Header", "text")
-	log.Printf("time: %s", time.Now().String())
 	for _, msg := range messages {
 		t := strconv.FormatInt(msg.Timestamp().Unix(), 10)
 		w.Write([]byte(t))
