@@ -23,7 +23,8 @@ class IRCStore {
 
 	//Create a new websocket at the provided address.
 	Start(wsaddr){
-        this.websocket = new WebSocket("ws://"+wsaddr);
+		var protocol = (window.location.protocol === "https:" ? "wss://" : "ws://")
+        this.websocket = new WebSocket(protocol+wsaddr);
         this.websocket.onmessage = this._recieveMessage.bind(this);
         this.websocket.onclose = this._socketClose.bind(this);
 		var websocket = this.websocket;
@@ -74,7 +75,8 @@ class RoomsManager {
 	
 	//Adds a message to the rooms manager, creating a room if it does not exist
 	AddMessage(message){
-		console.log("Adding message: ", message);
+		if(message.Args(1) === "#gotest")
+			console.log("Adding gotest message: ", message);
 		if(message.Command() === "NICK"){
 			if(message.Prefix() === null){
 				this.mynick = message.Args(0);
@@ -86,10 +88,16 @@ class RoomsManager {
 		
 		if(message.Command() === "PRIVMSG"){
 			var room = message.Args(0);
-			if(!this.RoomExists(room)){
-				this._createRoom(room);
+			if(room == this.mynick && message.Nick() !== null){
+				room = message.Nick();
 			}
+			
+			if(!this.RoomExists(room)){
+					this._createRoom(room);
+			}
+
 			this.Room(room).AddMessage(message);
+
 			return;
 		}
 		
@@ -144,9 +152,7 @@ class RoomsManager {
 			if(this.roomGettingUpdates.indexOf(room) >= 0){
 				console.log("Filling in user list for ", room,": ", users);
 				users = users.split(" ");
-				console.log("Adding users... list: ", users)
 				for(var k = 0; k < users.length; k++){
-					console.log("Adding user ", users[k])
 					this._addUser(room, users[k]);
 				}
 			}
