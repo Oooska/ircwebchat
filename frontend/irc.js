@@ -15,7 +15,7 @@ class Message{
         this.command = rval.command;
         this.args = rval.args;
         
-        console.log("Message constructor. New Message:",this," rval: ", rval);
+        this._setDisplayText();
     }
 
     Prefix() {
@@ -38,25 +38,52 @@ class Message{
         return this.command;
     }
     
-    Args() {
-        return this.args;
+    Args(index) {
+        if(index === undefined){ 
+            return this.args;
+        }
+        return this.args[index];
     }
     
     ToString() {
         return this.message;
+    }
+    
+    DisplayText(){
+        return this.displayText;
+    }
+    
+    _setDisplayText(){
+        var cmd = this.Command()
+        if(cmd === "PRIVMSG"){
+            var msg = this.Args(1);
+            if(msg.startsWith(" ACTION")){
+                this.displayText = msg.substring(7);
+            } else {
+                this.displayText = ": "+msg;
+            }
+        } else if(cmd === "JOIN"){
+            this.displayText = " joined the room.";
+        } else if(cmd === "PART"){
+            this.displayText = " has left the room.";
+        } else if(cmd === "QUIT"){
+            this.displayText = " has quit: " + this.Args(0);
+        } else {
+            this.displayText = this.ToString();
+        }
     }
 }
 
 //Room represents an IRC channel and message queue.
 class Room{
     constructor(name){
-        this.name = name
-        this.users = []
-        this.messages = []
+        this.name = name;
+        this.users = [];
+        this.messages = [];
     }
     
     AddMessage(msg){
-        this.messages.push(msg)
+        this.messages.push(msg);
     }
     
     Name(){
@@ -73,15 +100,19 @@ class Room{
     
     AddUser(user){
         //TODO: Add users more efficiently
-        this.users.push(user)
-        this.users.sort()
+        this.users.push(user);
+        this.users.sort();
     }
     
     RemoveUser(user){
-        var index = this.users.indexOf(user)
+        var index = this.users.indexOf(user);
         if(index >= 0){
-            this.users.splice(index, 1)
+            this.users.splice(index, 1);
         }
+    }
+    
+    ClearUsers(){
+        this.users = [];
     }
 }
 

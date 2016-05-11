@@ -12,7 +12,7 @@ var SERVER_CH = "Server Messages";
 class IRCStore {
 	constructor(){
 		this.websocket = undefined;
-		this.RoomsMgr = new RoomsManager();
+		this.roomsMgr = new RoomsManager();
 		this._callbacks = []
 	}
 	
@@ -38,26 +38,26 @@ class IRCStore {
 	SendMessage(msg){
 		//TODO: Parse message depending on context
 		this.websocket.send(msg.trim()+"\r\n");
-		this.RoomsMgr.AddMessage(new IRC.Message(msg.trim()));
-		this.updateCallbacks(this.RoomsMgr.Rooms());
+		this.roomsMgr.AddMessage(new IRC.Message(msg.trim()));
+		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
 	Rooms(){
-		return this.RoomsMgr.Rooms();
+		return this.roomsMgr.Rooms();
 	}
 
 	_recieveMessage(e){
-		this.RoomsMgr.AddMessage(new IRC.Message(e.data.trim()));
-		this.updateCallbacks(this.RoomsMgr.Rooms());
+		this.roomsMgr.AddMessage(new IRC.Message(e.data.trim()));
+		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
 	_socketClose(e){
 		console.log("Socket closed: ", e)
-		this.RoomsMgr.AddMessage(new IRC.Message("Websocket to webserver has closed."))
-		this.updateCallbacks(this.RoomsMgr.Rooms());
+		this.roomsMgr.AddMessage(new IRC.Message("Websocket to webserver has closed."))
+		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
-	updateCallbacks(rooms){
+	_updateCallbacks(rooms){
 		for(var k=0; k < this._callbacks.length; k++){
 			this._callbacks[k](rooms);
 		}
@@ -77,21 +77,25 @@ class RoomsManager {
 		console.log("Adding message: ", message);
 		if(message.Command() === "NICK"){
 			if(message.Prefix() === null){
-				this.mynick = message.Args()[0];
+				this.mynick = message.Args(0);
 			} else if(message.Args().length >= 1){
-				this._changeNick(message.Nick(), message.Args()[0]);
+				this._changeNick(message.Nick(), message.Args(0));
 			}
 			return;
 		}
 		
 		if(message.Command() === "PRIVMSG"){
-			this._addPrivMessage(message);
+			var room = message.Args(0);
+			if(!this.RoomExists(room)){
+				this._createRoom(room);
+			}
+			this.Room(room).AddMessage(message);
 			return;
 		}
 		
 		if(message.Command() === "JOIN"){
 			console.log("JOIN command...")
-			var room = message.Args()[0]
+			var room = message.Args(0);
 			if(room === undefined)
 				return; //Malformed JOIN request
 			
@@ -99,24 +103,28 @@ class RoomsManager {
 				this._createRoom(room);
 			if(message.Nick() !== null){
 				this.Room(room).AddUser(message.Nick());
-				console.log("Added user to room")
 			} else{ // - user just joined a room - expecting 353 command for this room
 				this.roomGettingUpdates.push(room);
-				console.log("We're joining the room, adding ", room, " to roomGettingUpdates")
+				this.Room(room).ClearUsers();
 			}
+			this.Room(room).AddMessage(message);
 			return;
 		}
 		
 		if(message.Command() === "PART"){
-			var room = message.Args()[0]
+			var room = message.Args(0)
+			var user = message.Nick() || this.mynick;
 			if(room === undefined)
 				return; //Malformed PART request
 				
 			if(message.Nick() === null){
 				//User parting channel
-				this.RemoveRoom(room);
+				this._removeRoom(room);
 			} else if(this.RoomExists(room)){
 				this.Room(room).RemoveUser(user);
+			}
+			if(this.RoomExists(room)){
+				this.Room(room).AddMessage(message);
 			}
 			return;
 		}
@@ -124,8 +132,8 @@ class RoomsManager {
 		if(message.Command() === "353"){
 			//353 command tells client what users are in a channel
 			//:tepper.freenode.net 353 nick @ #gotest :goirctest @Oooska
-			var room = message.Args()[2];
-			var users = message.Args()[3];
+			var room = message.Args(2);
+			var users = message.Args(3);
 			
 			if(room === undefined || users === undefined){
 				console.log("Recieved malformed 353 request")
@@ -149,9 +157,9 @@ class RoomsManager {
 		if(message.Command() === "366"){
 			//363 command tells client we're done updating names list
 			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
-			var room = message.Args()[1];
+			var room = message.Args(1);
 			if(room !== undefined){
-				var i = this.roomGettingUpdates.indexOf(room)
+				var i = this.roomGettingUpdates.indexOf(room);
 				if(i >= 0){
 					this.roomGettingUpdates.splice(i, 1);
 				}
@@ -173,7 +181,7 @@ class RoomsManager {
 		this.rooms[name] = new IRC.Room(name);
 	}
 	
-	RemoveRoom(name){
+	_removeRoom(name){
 		this.rooms[name] = undefined;
 	}
 	
@@ -182,10 +190,6 @@ class RoomsManager {
 		if(room !== undefined){
 			room.AddUser(user);
 		}
-	}
-	
-	RemoveUser(roomName, user){
-		
 	}
 	
 	RoomExists(name){
@@ -242,4 +246,6 @@ function getCookie(name) {
 }
 
 
-module.exports = new IRCStore();
+var store = new IRCStore()
+store.DefaultChannel = SERVER_CH;
+module.exports = store;

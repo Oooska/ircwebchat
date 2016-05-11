@@ -25,7 +25,7 @@ var MessageList = React.createClass({
 	render: function () {
 		var rows = [];
 		for (var k = 0; k < this.props.messages.length; k++) {
-			rows.push(React.createElement("span", { key: k }, this.props.messages[k].Nick() === null ? "You" : this.props.messages[k].Nick(), ":", this.props.messages[k].Args()[1]));
+			rows.push(React.createElement("span", { key: k }, this.props.messages[k].Nick() === null ? "You" : this.props.messages[k].Nick(), this.props.messages[k].DisplayText()));
 		}
 		return React.createElement("div", { className: "messagelist col-xs-10" }, rows);
 	}
@@ -137,7 +137,7 @@ var IRCWebChat = React.createClass({
 		console.log("getInitialState: IRCStore.Rooms: ", IRCStore.Rooms());
 		return {
 			rooms: IRCStore.Rooms(),
-			activeTab: "",
+			activeTab: IRCStore.DefaultChannel,
 			input: { value: "" }
 		};
 	},
@@ -206,7 +206,7 @@ class Message {
         this.command = rval.command;
         this.args = rval.args;
 
-        console.log("Message constructor. New Message:", this, " rval: ", rval);
+        this._setDisplayText();
     }
 
     Prefix() {
@@ -229,12 +229,39 @@ class Message {
         return this.command;
     }
 
-    Args() {
-        return this.args;
+    Args(index) {
+        if (index === undefined) {
+            return this.args;
+        }
+        return this.args[index];
     }
 
     ToString() {
         return this.message;
+    }
+
+    DisplayText() {
+        return this.displayText;
+    }
+
+    _setDisplayText() {
+        var cmd = this.Command();
+        if (cmd === "PRIVMSG") {
+            var msg = this.Args(1);
+            if (msg.startsWith(" ACTION")) {
+                this.displayText = msg.substring(7);
+            } else {
+                this.displayText = ": " + msg;
+            }
+        } else if (cmd === "JOIN") {
+            this.displayText = " joined the room.";
+        } else if (cmd === "PART") {
+            this.displayText = " has left the room.";
+        } else if (cmd === "QUIT") {
+            this.displayText = " has quit: " + this.Args(0);
+        } else {
+            this.displayText = this.ToString();
+        }
     }
 }
 
@@ -273,6 +300,10 @@ class Room {
         if (index >= 0) {
             this.users.splice(index, 1);
         }
+    }
+
+    ClearUsers() {
+        this.users = [];
     }
 }
 
@@ -366,7 +397,7 @@ var SERVER_CH = "Server Messages";
 class IRCStore {
 	constructor() {
 		this.websocket = undefined;
-		this.RoomsMgr = new RoomsManager();
+		this.roomsMgr = new RoomsManager();
 		this._callbacks = [];
 	}
 
@@ -392,26 +423,26 @@ class IRCStore {
 	SendMessage(msg) {
 		//TODO: Parse message depending on context
 		this.websocket.send(msg.trim() + "\r\n");
-		this.RoomsMgr.AddMessage(new IRC.Message(msg.trim()));
-		this.updateCallbacks(this.RoomsMgr.Rooms());
+		this.roomsMgr.AddMessage(new IRC.Message(msg.trim()));
+		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
 	Rooms() {
-		return this.RoomsMgr.Rooms();
+		return this.roomsMgr.Rooms();
 	}
 
 	_recieveMessage(e) {
-		this.RoomsMgr.AddMessage(new IRC.Message(e.data.trim()));
-		this.updateCallbacks(this.RoomsMgr.Rooms());
+		this.roomsMgr.AddMessage(new IRC.Message(e.data.trim()));
+		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
 	_socketClose(e) {
 		console.log("Socket closed: ", e);
-		this.RoomsMgr.AddMessage(new IRC.Message("Websocket to webserver has closed."));
-		this.updateCallbacks(this.RoomsMgr.Rooms());
+		this.roomsMgr.AddMessage(new IRC.Message("Websocket to webserver has closed."));
+		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
-	updateCallbacks(rooms) {
+	_updateCallbacks(rooms) {
 		for (var k = 0; k < this._callbacks.length; k++) {
 			this._callbacks[k](rooms);
 		}
@@ -431,44 +462,52 @@ class RoomsManager {
 		console.log("Adding message: ", message);
 		if (message.Command() === "NICK") {
 			if (message.Prefix() === null) {
-				this.mynick = message.Args()[0];
+				this.mynick = message.Args(0);
 			} else if (message.Args().length >= 1) {
-				this._changeNick(message.Nick(), message.Args()[0]);
+				this._changeNick(message.Nick(), message.Args(0));
 			}
 			return;
 		}
 
 		if (message.Command() === "PRIVMSG") {
-			this._addPrivMessage(message);
+			var room = message.Args(0);
+			if (!this.RoomExists(room)) {
+				this._createRoom(room);
+			}
+			this.Room(room).AddMessage(message);
 			return;
 		}
 
 		if (message.Command() === "JOIN") {
 			console.log("JOIN command...");
-			var room = message.Args()[0];
+			var room = message.Args(0);
 			if (room === undefined) return; //Malformed JOIN request
 
 			if (!this.RoomExists(room)) this._createRoom(room);
 			if (message.Nick() !== null) {
 				this.Room(room).AddUser(message.Nick());
-				console.log("Added user to room");
 			} else {
 				// - user just joined a room - expecting 353 command for this room
 				this.roomGettingUpdates.push(room);
-				console.log("We're joining the room, adding ", room, " to roomGettingUpdates");
+				this.Room(room).ClearUsers();
 			}
+			this.Room(room).AddMessage(message);
 			return;
 		}
 
 		if (message.Command() === "PART") {
-			var room = message.Args()[0];
+			var room = message.Args(0);
+			var user = message.Nick() || this.mynick;
 			if (room === undefined) return; //Malformed PART request
 
 			if (message.Nick() === null) {
 				//User parting channel
-				this.RemoveRoom(room);
+				this._removeRoom(room);
 			} else if (this.RoomExists(room)) {
 				this.Room(room).RemoveUser(user);
+			}
+			if (this.RoomExists(room)) {
+				this.Room(room).AddMessage(message);
 			}
 			return;
 		}
@@ -476,8 +515,8 @@ class RoomsManager {
 		if (message.Command() === "353") {
 			//353 command tells client what users are in a channel
 			//:tepper.freenode.net 353 nick @ #gotest :goirctest @Oooska
-			var room = message.Args()[2];
-			var users = message.Args()[3];
+			var room = message.Args(2);
+			var users = message.Args(3);
 
 			if (room === undefined || users === undefined) {
 				console.log("Recieved malformed 353 request");
@@ -501,7 +540,7 @@ class RoomsManager {
 		if (message.Command() === "366") {
 			//363 command tells client we're done updating names list
 			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
-			var room = message.Args()[1];
+			var room = message.Args(1);
 			if (room !== undefined) {
 				var i = this.roomGettingUpdates.indexOf(room);
 				if (i >= 0) {
@@ -523,7 +562,7 @@ class RoomsManager {
 		this.rooms[name] = new IRC.Room(name);
 	}
 
-	RemoveRoom(name) {
+	_removeRoom(name) {
 		this.rooms[name] = undefined;
 	}
 
@@ -533,8 +572,6 @@ class RoomsManager {
 			room.AddUser(user);
 		}
 	}
-
-	RemoveUser(roomName, user) {}
 
 	RoomExists(name) {
 		return this.rooms[name] !== undefined;
@@ -581,7 +618,9 @@ function getCookie(name) {
 	if (parts.length == 2) return parts.pop().split(";").shift();
 }
 
-module.exports = new IRCStore();
+var store = new IRCStore();
+store.DefaultChannel = SERVER_CH;
+module.exports = store;
 
 },{"./irc":7}],9:[function(require,module,exports){
 (function (global){

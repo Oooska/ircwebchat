@@ -12,7 +12,7 @@ var IRCWebChat = React.createClass({
 		console.log("getInitialState: IRCStore.Rooms: ", IRCStore.Rooms())
 		return {
 			rooms: IRCStore.Rooms(),
-			activeTab: "",
+			activeTab: IRCStore.DefaultChannel,
 			input: {value:""}	
 		}
 	},

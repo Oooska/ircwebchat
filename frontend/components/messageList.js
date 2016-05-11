@@ -23,8 +23,8 @@ var MessageList = React.createClass({
 		var rows = [];
 		for(var k=0; k < this.props.messages.length; k++){
 			rows.push( <span key={k}>
-				{this.props.messages[k].Nick() === null ? "You" : this.props.messages[k].Nick()}: 
-				{this.props.messages[k].Args()[1]}</span> )
+				{this.props.messages[k].Nick() === null ? "You" : this.props.messages[k].Nick()} 
+				{this.props.messages[k].DisplayText()}</span> )
 		}
 		return (
 			<div className="messagelist col-xs-10">
