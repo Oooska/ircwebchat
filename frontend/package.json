@@ -15,8 +15,7 @@
   "license": "MIT",
   "dependencies": {
     "react": "^0.14.6",
-    "react-dom": "^0.14.6",
-    "tabs.react": "git+https://github.com/Oooska/tabs.react.git#master"
+    "react-dom": "^0.14.6"
   },
   "devDependencies": {
     "babel-preset-react": "^6.3.13",

@@ -74,7 +74,6 @@ var Room = React.createClass({
 module.exports = Room;
 
 },{"../irc":7,"./messageList":1,"./nickList":2}],4:[function(require,module,exports){
-var Tabs = require('tabs.react');
 var Room = require('./room');
 
 var IRC = require('../irc');
@@ -84,21 +83,26 @@ var TabbedRooms = React.createClass({
 
 	propTypes: {
 		rooms: React.PropTypes.arrayOf(React.PropTypes.instanceOf(IRC.Room)),
-		activeTab: React.PropTypes.string.isRequired,
+		activeRoom: React.PropTypes.instanceOf(IRC.Room),
 		onChange: React.PropTypes.func.isRequired
 	},
 
 	render: function () {
 		var self = this;
-		return React.createElement(Tabs, { active: this.props.activeTab, propName: 'name', onChange: this.props.onChange }, this.props.rooms.map(function (room) {
-			return React.createElement(Room, { name: room.Name(), users: room.Users(), messages: room.Messages(), key: room.Name() });
-		}));
+		var activeRoom = this.props.activeRoom;
+		var rooms = this.props.rooms;
+		var onChange = this.props.onChange;
+		return React.createElement('div', null, React.createElement('ul', { className: 'tabs' }, rooms.map(function (room) {
+			return React.createElement('li', { className: activeRoom.Name() === room.Name() ? "active" : "",
+				onClick: onChange.bind(null, room.Name()),
+				key: room.Name() }, room.Name());
+		})), React.createElement(Room, { name: activeRoom.Name(), users: activeRoom.Users(), messages: activeRoom.Messages() }));
 	}
 });
 
 module.exports = TabbedRooms;
 
-},{"../irc":7,"./room":3,"tabs.react":9}],5:[function(require,module,exports){
+},{"../irc":7,"./room":3}],5:[function(require,module,exports){
 var Input = React.createClass({
 	displayName: "Input",
 
@@ -134,10 +138,9 @@ var IRCWebChat = React.createClass({
 	displayName: 'IRCWebChat',
 
 	getInitialState: function () {
-		console.log("getInitialState: IRCStore.Rooms: ", IRCStore.Rooms());
 		return {
 			rooms: IRCStore.Rooms(),
-			activeTab: IRCStore.DefaultChannel,
+			activeRoom: IRCStore.Room(IRCStore.DefaultChannel),
 			input: { value: "" }
 		};
 	},
@@ -159,12 +162,9 @@ var IRCWebChat = React.createClass({
 		event.preventDefault();
 
 		var val = this.state.input.value;
-		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.state.activeTab != "" && this.state.activeTab != "Server Messages") {
-			console.log("this.activeTab: ", this.activeTab);
-			val = "PRIVMSG " + this.state.activeTab + " :" + val;
+		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.state.activeRoom !== undefined && this.state.activeRoom.Name() != "Server Messages") {
+			val = "PRIVMSG " + this.state.activeRoom.Name() + " :" + val;
 		}
-
-		console.log("Sending message. Input: ", this.state.input.value, " Parsed to :", val);
 
 		IRCStore.SendMessage(val);
 		this.setState({ input: { value: '' } });
@@ -172,7 +172,7 @@ var IRCWebChat = React.createClass({
 
 	//Listens for the user switching tabs
 	_tabChanged: function (newValue) {
-		this.setState({ activeTab: newValue.active });
+		this.setState({ activeRoom: IRCStore.Room(newValue) });
 	},
 
 	//Listens for changes to the Input box
@@ -181,7 +181,7 @@ var IRCWebChat = React.createClass({
 	},
 
 	render: function () {
-		return React.createElement('div', { className: 'container-fluid' }, React.createElement(TabbedRooms, { rooms: this.state.rooms, activeTab: this.state.activeTab, onChange: this._tabChanged }), React.createElement(Input, { value: this.state.input.value, onChange: this._inputChange, onSend: this.sendMessage }));
+		return React.createElement('div', { className: 'container-fluid' }, React.createElement(TabbedRooms, { rooms: this.state.rooms, activeRoom: this.state.activeRoom, onChange: this._tabChanged }), React.createElement(Input, { value: this.state.input.value, onChange: this._inputChange, onSend: this.sendMessage }));
 	}
 });
 
@@ -415,7 +415,7 @@ class IRCStore {
 		var websocket = this.websocket;
 		//Send sessionid over ws:
 		this.websocket.onopen = function () {
-			var sessionID = getCookie("SessionID");
+			var sessionID = getCookieValue("SessionID");
 			console.log("Session ID: " + sessionID);
 			websocket.send(sessionID + "\r\n");
 		};
@@ -430,6 +430,10 @@ class IRCStore {
 
 	Rooms() {
 		return this.roomsMgr.Rooms();
+	}
+
+	Room(rmName) {
+		return this.roomsMgr.Room(rmName);
 	}
 
 	_recieveMessage(e) {
@@ -617,7 +621,7 @@ class RoomsManager {
 }
 
 //Helper function that returns the value of the specified cookie name
-function getCookie(name) {
+function getCookieValue(name) {
 	var value = "; " + document.cookie;
 	var parts = value.split("; " + name + "=");
 	if (parts.length == 2) return parts.pop().split(";").shift();
@@ -627,215 +631,4 @@ var store = new IRCStore();
 store.DefaultChannel = SERVER_CH;
 module.exports = store;
 
-},{"./irc":7}],9:[function(require,module,exports){
-(function (global){
-(function () {
-	'use strict';
-	/* Tabs provides a simple way of providing tabbed components. 
- 
-   General Features:
- 	Tab names are taken from the children of <Tabs>. 
- 		The default is to look for a property named 'tabName' on each child of <Tabs>. 
- 		This can be modified by changing the property 'propName'.
- 
- 	By default, tabNames are used as keys and must be unique.
- 		Set the property 'useKeys' to true to allow for non-unique tabNames.
- 		If true, a property named 'key' that must be provided and be unique.
- 	
-     Multiple tabs being active is supported.
- 		Set the property 'allowMultiple' to true to enable. 
- 
-   Props:
- 	allowMultiple: bool - If true, multiple tabs can be selected. 
- 	
- 	propName: string, default: 'tabName' - The propname that will be used
- 		to get the title of the tab. This must be unique among all children
- 		unless useKeys is enabled.
- 	
- 	useKeys: bool - If true, Tabs requires children to have a prop value 'key' 
- 		that are unique (but tabnames no longer need to be unique)		
- 	
- 	active: string, or array of strings - The current active tab by title 
- 		(or key if useKeys=true). If allowMultiple=true, active will be an 
- 		array of titles/keys	
- 	
- 	useState: bool, default: false - The user is normally responsible for maintaining 
- 		the prop 'active' based on the value supplied to the onChange callback.
- 		If useState is set to true, this component maintains the stateful value of the active tab.
- 		The application does not need to update the property 'active'. This should only
- 		be used if you have no interest in maintaining which tab is currently active.
- 	
- 	onChange: callback - The callback is called when the user clicks on a new tab. It
- 		provides the tabName or key of the tab clicks. If allowMultiple is true,
- 		onCHange will provide an array of the tabNames/keys that should be active.
- 
- 
-   Example:
- 		<Tabs useState={true}>
- 			<Elem tabName='Action for Tab1!' />
- 			<SomeOtherElem tabName='Tile for Tab#2' />
- 			<div tabName='Tab Number 3!'>Interesting lack of content.</div>
- 		</Tabs>
- */
-
-	//Root code stolen from underscore.js (https://github.com/jashkenas/underscore/blob/master/underscore.js):
-	// Establish the root object, `window` (`self`) in the browser, `global`
-	// on the server, or `this` in some virtual machines. We use `self`
-	// instead of `window` for `WebWorker` support.
-
-	var root = typeof self == 'object' && self.self === self && self || typeof global == 'object' && global.global === global && global || this;
-
-	var has_require = typeof require !== 'undefined';
-
-	var React = root.React;
-	if (typeof React === 'undefined') {
-		if (has_require) React = require('react');else throw new Error('Tabs requires the React object be defined.');
-	}
-
-	var Tabs = React.createClass({
-		displayName: 'Tabs',
-
-		getDefaultProps: function () {
-			return {
-				active: null,
-				allowMultiple: false,
-				propName: 'tabName',
-				onChange: null,
-				useKeys: false,
-				useState: false
-			};
-		},
-
-		/* The initial state is copied over from the specified props.
-     If allowMultiple=true, active becomes an array. 
-  */
-		getInitialState: function () {
-			var p = this.props;
-			var active = p.active;
-			//Set active to an array if allowMultiple is true.
-			if (p.allowMultiple) {
-				if (active === null) active = [];else if (!Array.isArray(active)) active = [active];
-			}
-			return { active: active };
-		},
-
-		//When receiving new props, if tabs is not managing own state, update state.
-		componentWillReceiveProps: function (newProps) {
-			if (this.props.useState) return; //Let state manage things, not props.
-
-			var active = newProps.active;
-			if (newProps.allowMultiple) {
-				if (active === null) active = [];else if (!Array.isArray(active)) active = [active];
-			}
-			this.setState({ active: active });
-		},
-
-		/* render() iterates through all the children, reading their tabname, 
-     and saving active children to an array for display. 
-   */render: function () {
-			var self = this;
-			var children = this.props.children;
-			var activeChildren = [];
-
-			return React.createElement(
-				'div',
-				null,
-				React.createElement(
-					'ul',
-					{ className: 'tabs' },
-					React.Children.map(children, function (child) {
-						if (child === null) return;
-
-						var name = self._getTabName(child);
-						var key = self._getKey(child);
-						var active = self._isActive(child);
-						if (active) activeChildren.push(child);
-
-						return React.createElement(
-							'li',
-							{ className: active ? 'active' : '',
-								onClick: self._onClick.bind(null, key) },
-							name
-						);
-					})
-				),
-				React.createElement(
-					'div',
-					{ className: 'tabcontent' },
-					activeChildren
-				)
-			);
-		},
-
-		//Returns the name of the specified child as defined by propName.
-		_getTabName: function (child) {
-			return child.props[this.props.propName];
-		},
-
-		//Returns the key of the child (either the tabName, or the child
-		//key if useKeys is turned on.
-		_getKey: function (child) {
-			if (this.props.useKeys) return child.key;else return this._getTabName(child);
-		},
-
-		//Returns true if this tab is listed as active in state.active.
-		_isActive: function (child) {
-			var key = this._getKey(child);
-			if (this.props.allowMultiple) {
-				return this.state.active.indexOf(key) >= 0;
-			}
-
-			return this.state.active === key;
-		},
-
-		//Calls the specified callbacks with the requested new state.
-		_notifyCallbacks: function (newState) {
-			var callbacks = this.props.onChange;
-
-			if (callbacks !== null) {
-				if (Array.isArray(callbacks)) callbacks.map(function (cb) {
-					cb(newState);
-				});else callbacks(newState);
-			}
-		},
-
-		//Triggered when clicking a new tab. Triggers the onChange callback
-		//if useState is true. the state is immediately updated to show the new tab
-		//TODO: Reverse order - notify callbacks, allow them to prevent state change.
-		_onClick: function (key) {
-			var p = this.props;
-			var active = this.state.active;
-			var retval;
-			if (p.allowMultiple) {
-				var index = active.indexOf(key);
-				var newVal = active.slice();
-				if (index >= 0) newVal.splice(index, 1);else newVal.push(key);
-
-				retval = { active: newVal };
-				if (p.useState) this.setState(retval);
-				this._notifyCallbacks(retval);
-			} else if (active !== key) {
-				retval = { active: key };
-				if (p.useState) this.setState(retval);
-				this._notifyCallbacks(retval);
-			}
-		}
-	});
-
-	//Export code stolen from underscore.js (https://github.com/jashkenas/underscore/blob/master/underscore.js):
-	// Export the Tabs object for **Node.js**, with
-	// backwards-compatibility for their old module API. If we're in
-	// the browser, add `Tabs` as a global object.
-	// (`nodeType` is checked to ensure that `module`
-	// and `exports` are not HTML elements.)
-	if (typeof exports != 'undefined' && !exports.nodeType) {
-		if (typeof module != 'undefined' && !module.nodeType && module.exports) {
-			exports = module.exports = Tabs;
-		}
-		exports.Tabs = Tabs;
-	} else {
-		root.Tabs = Tabs;
-	}
-})();
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"react":"react"}]},{},[6]);
+},{"./irc":7}]},{},[6]);

@@ -30,7 +30,7 @@ class IRCStore {
 		var websocket = this.websocket;
 		//Send sessionid over ws:
 		this.websocket.onopen = function(){
-			var sessionID = getCookie("SessionID")
+			var sessionID = getCookieValue("SessionID")
 			console.log("Session ID: "+sessionID)
 			websocket.send(sessionID+"\r\n")
 		};
@@ -45,6 +45,10 @@ class IRCStore {
 
 	Rooms(){
 		return this.roomsMgr.Rooms();
+	}
+	
+	Room(rmName){
+		return this.roomsMgr.Room(rmName);
 	}
 
 	_recieveMessage(e){
@@ -245,7 +249,7 @@ class RoomsManager {
 
 
 //Helper function that returns the value of the specified cookie name
-function getCookie(name) {
+function getCookieValue(name) {
   var value = "; " + document.cookie;
   var parts = value.split("; " + name + "=");
   if (parts.length == 2) return parts.pop().split(";").shift();
