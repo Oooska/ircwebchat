@@ -203,7 +203,7 @@ class Message {
         this.nick = rval.nick;
         this.user = rval.user;
         this.host = rval.host;
-        this.command = rval.command;
+        this.command = rval.command.toUpperCase();
         this.args = rval.args;
 
         this._setDisplayText();
@@ -236,7 +236,7 @@ class Message {
         return this.args[index];
     }
 
-    ToString() {
+    toString() {
         return this.message;
     }
 
@@ -260,7 +260,7 @@ class Message {
         } else if (cmd === "QUIT") {
             this.displayText = " has quit: " + this.Args(0);
         } else {
-            this.displayText = this.ToString();
+            this.displayText = this.toString();
         }
     }
 }
@@ -269,7 +269,8 @@ class Message {
 class Room {
     constructor(name) {
         this.name = name;
-        this.users = [];
+        this.users = {};
+        this._usersArr = [];
         this.messages = [];
     }
 
@@ -286,24 +287,46 @@ class Room {
     }
 
     Users() {
-        return this.users;
+        return this._usersArr;
     }
 
-    AddUser(user) {
+    AddUser(...users) {
         //TODO: Add users more efficiently
-        this.users.push(user);
-        this.users.sort();
+        for (var i in users) {
+            var user = users[i];
+            var name = user;
+            if (user[0] == "@" || user[0] == "+") {
+                name = user.substring(1);
+            }
+            console.log("Adding user: ", user);
+
+            this.users[name] = user;
+        }
+        this._updateUserArr();
     }
 
-    RemoveUser(user) {
-        var index = this.users.indexOf(user);
-        if (index >= 0) {
-            this.users.splice(index, 1);
+    RemoveUser(...users) {
+        for (var i in users) {
+            var user = users[i];
+            var name = user;
+            if (user[0] == "@" || user[0] == "+") {
+                name = user.substring(1);
+            }
+            delete this.users[name];
         }
+        this._updateUserArr();
     }
 
     ClearUsers() {
-        this.users = [];
+        this.users = {};
+        this._usersArr = [];
+    }
+
+    _updateUserArr() {
+        this._usersArr = [];
+        for (var key in this.users) {
+            this._usersArr.push(this.users[key]);
+        }
     }
 }
 
@@ -337,6 +360,8 @@ function parseMessage(message) {
 
     //Parse the command
     var end = s.indexOf(' ');
+    if (end < 0) //No arg commands will have no space
+        end = s.length;
     retval.command = s.substring(0, end).toUpperCase();
 
     //Parse the parameters by white space, everything after the ':' treated as one argument
@@ -458,13 +483,13 @@ class RoomsManager {
 	constructor() {
 		this.mynick = undefined;
 		this.rooms = {};
+		this.namesCommand = false; //True if /names w/o args was sent to server
 		this.roomGettingUpdates = []; //Tracks 353/366 commands
 		this._createRoom(SERVER_CH);
 	}
 
 	//Adds a message to the rooms manager, creating a room if it does not exist
 	AddMessage(message) {
-		if (message.Args(1) === "#gotest") console.log("Adding gotest message: ", message);
 		if (message.Command() === "NICK") {
 			if (message.Prefix() === null) {
 				this.mynick = message.Args(0);
@@ -497,10 +522,6 @@ class RoomsManager {
 			if (!this.RoomExists(room)) this._createRoom(room);
 			if (message.Nick() !== null) {
 				this.Room(room).AddUser(message.Nick());
-			} else {
-				// - user just joined a room - expecting 353 command for this room
-				this.roomGettingUpdates.push(room);
-				this.Room(room).ClearUsers();
 			}
 			this.Room(room).AddMessage(message);
 			return;
@@ -523,8 +544,22 @@ class RoomsManager {
 			return;
 		}
 
+		if (message.Command() === "NAMES") {
+			if (message.Args().length <= 0) {
+				this.namesCommand = true;
+			}
+		}
+
 		if (message.Command() === "353") {
-			//353 command tells client what users are in a channel
+			//353 command tells client what users are in a channel,
+			//or may be part of a list of all public channels
+
+			if (this.namesCommand) {
+				//TODO: Server is sending a list of all public channels. We should show this to the user
+				return;
+			}
+
+			//Must be a list of users in a specific channel
 			//:tepper.freenode.net 353 nick @ #gotest :goirctest @Oooska
 			var room = message.Args(2);
 			var users = message.Args(3);
@@ -535,13 +570,13 @@ class RoomsManager {
 			}
 
 			console.log("Expecting user info for: ", this.roomGettingUpdates);
-			if (this.roomGettingUpdates.indexOf(room) >= 0) {
-				console.log("Filling in user list for ", room, ": ", users);
-				users = users.split(" ");
-				for (var k = 0; k < users.length; k++) {
-					this._addUser(room, users[k]);
-				}
+			if (this.roomGettingUpdates.indexOf(room) <= 0) {
+				this.roomGettingUpdates.push(room);
+				this.Room(room).ClearUsers();
 			}
+
+			users = users.split(" ");
+			this._addUser(room, ...users);
 
 			return;
 		}
@@ -549,6 +584,12 @@ class RoomsManager {
 		if (message.Command() === "366") {
 			//363 command tells client we're done updating names list
 			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
+			if (this.namesCommand) {
+				//Done sending a list of all public channels
+				this.namesCommand = false;
+				return;
+			}
+
 			var room = message.Args(1);
 			if (room !== undefined) {
 				var i = this.roomGettingUpdates.indexOf(room);
@@ -575,10 +616,10 @@ class RoomsManager {
 		this.rooms[name] = undefined;
 	}
 
-	_addUser(roomName, user) {
+	_addUser(roomName, ...user) {
 		var room = this.rooms[roomName];
 		if (room !== undefined) {
-			room.AddUser(user);
+			room.AddUser(...user);
 		}
 	}
 
@@ -609,8 +650,8 @@ class RoomsManager {
 		//PRIVMSG #channel/user :Message (from user to channel/remoteuser)
 		var roomName;
 		if (message.Nick() !== undefined) //Coming from someone else - roomname is either channel or user that sent it
-			roomName = message.Args()[0] === this.mynick ? message.Nick() : message.Args()[0];else //Outgoing message from our user
-			roomName = message.Args()[0];
+			roomName = message.Args(0) === this.mynick ? message.Nick() : message.Args(0);else //Outgoing message from our user
+			roomName = message.Args(0);
 
 		if (roomName === undefined) return; //Invalid privmsg
 

@@ -73,14 +73,13 @@ class RoomsManager {
 	constructor(){
 		this.mynick = undefined;
 		this.rooms = {};
+		this.namesCommand = false; //True if /names w/o args was sent to server
 		this.roomGettingUpdates = []; //Tracks 353/366 commands
 		this._createRoom(SERVER_CH);
 	}
 	
 	//Adds a message to the rooms manager, creating a room if it does not exist
 	AddMessage(message){
-		if(message.Args(1) === "#gotest")
-			console.log("Adding gotest message: ", message);
 		if(message.Command() === "NICK"){
 			if(message.Prefix() === null){
 				this.mynick = message.Args(0);
@@ -115,10 +114,7 @@ class RoomsManager {
 				this._createRoom(room);
 			if(message.Nick() !== null){
 				this.Room(room).AddUser(message.Nick());
-			} else{ // - user just joined a room - expecting 353 command for this room
-				this.roomGettingUpdates.push(room);
-				this.Room(room).ClearUsers();
-			}
+			} 
 			this.Room(room).AddMessage(message);
 			return;
 		}
@@ -141,25 +137,39 @@ class RoomsManager {
 			return;
 		}
 		
+		if(message.Command() === "NAMES"){
+			if(message.Args().length <= 0){
+				this.namesCommand = true;
+			} 
+		}
+		
 		if(message.Command() === "353"){
-			//353 command tells client what users are in a channel
+			//353 command tells client what users are in a channel,
+			//or may be part of a list of all public channels
+			
+			if(this.namesCommand){
+				//TODO: Server is sending a list of all public channels. We should show this to the user
+				return; 
+			}
+			
+			//Must be a list of users in a specific channel
 			//:tepper.freenode.net 353 nick @ #gotest :goirctest @Oooska
 			var room = message.Args(2);
 			var users = message.Args(3);
 			
 			if(room === undefined || users === undefined){
-				console.log("Recieved malformed 353 request")
+				console.log("Recieved malformed 353 request");
 				return; //Malformed 353 command		
 			}
-					
+
 			console.log("Expecting user info for: ", this.roomGettingUpdates)		
-			if(this.roomGettingUpdates.indexOf(room) >= 0){
-				console.log("Filling in user list for ", room,": ", users);
-				users = users.split(" ");
-				for(var k = 0; k < users.length; k++){
-					this._addUser(room, users[k]);
-				}
+			if(this.roomGettingUpdates.indexOf(room) <= 0){
+				this.roomGettingUpdates.push(room);
+				this.Room(room).ClearUsers();
 			}
+			
+			users = users.split(" ");
+			this._addUser(room, ...users);
 			
 			return;
 		}
@@ -167,6 +177,12 @@ class RoomsManager {
 		if(message.Command() === "366"){
 			//363 command tells client we're done updating names list
 			//:tepper.freenode.net 366 goirctest #gotest :End of /NAMES list.
+			if(this.namesCommand){
+				//Done sending a list of all public channels
+				this.namesCommand = false;
+				return;
+			}
+			
 			var room = message.Args(1);
 			if(room !== undefined){
 				var i = this.roomGettingUpdates.indexOf(room);
@@ -195,10 +211,10 @@ class RoomsManager {
 		this.rooms[name] = undefined;
 	}
 	
-	_addUser(roomName, user){
+	_addUser(roomName, ...user){
 		var room = this.rooms[roomName];
 		if(room !== undefined){
-			room.AddUser(user);
+			room.AddUser(...user);
 		}
 	}
 	
@@ -231,9 +247,9 @@ class RoomsManager {
 		//PRIVMSG #channel/user :Message (from user to channel/remoteuser)
 		var roomName;
 		if(message.Nick() !== undefined) //Coming from someone else - roomname is either channel or user that sent it
-			roomName = message.Args()[0] === this.mynick ? message.Nick() : message.Args()[0];
+			roomName = message.Args(0) === this.mynick ? message.Nick() : message.Args(0);
 		else //Outgoing message from our user
-			roomName = message.Args()[0];
+			roomName = message.Args(0);
 		
 		if(roomName === undefined)
 			return; //Invalid privmsg

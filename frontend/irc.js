@@ -12,7 +12,7 @@ class Message{
         this.nick = rval.nick;
         this.user = rval.user;
         this.host = rval.host;
-        this.command = rval.command;
+        this.command = rval.command.toUpperCase();
         this.args = rval.args;
         
         this._setDisplayText();
@@ -45,7 +45,7 @@ class Message{
         return this.args[index];
     }
     
-    ToString() {
+    toString() {
         return this.message;
     }
     
@@ -69,7 +69,7 @@ class Message{
         } else if(cmd === "QUIT"){
             this.displayText = " has quit: " + this.Args(0);
         } else {
-            this.displayText = this.ToString();
+            this.displayText = this.toString();
         }
     }
 }
@@ -78,7 +78,8 @@ class Message{
 class Room{
     constructor(name){
         this.name = name;
-        this.users = [];
+        this.users = {};
+        this._usersArr = [];
         this.messages = [];
     }
     
@@ -95,24 +96,47 @@ class Room{
     }
     
     Users(){
-        return this.users;
+        return this._usersArr;
     }
     
-    AddUser(user){
+    AddUser(...users){
         //TODO: Add users more efficiently
-        this.users.push(user);
-        this.users.sort();
+        for(var i in users){
+            var user = users[i];
+            var name = user;
+            if(user[0] == "@" || user[0] == "+"){
+                name = user.substring(1);
+            }
+            console.log("Adding user: ", user)
+            
+            this.users[name] = user;
+        }
+        this._updateUserArr();
+        
     }
     
-    RemoveUser(user){
-        var index = this.users.indexOf(user);
-        if(index >= 0){
-            this.users.splice(index, 1);
+    RemoveUser(...users){
+        for(var i in users){
+            var user = users[i];
+            var name = user;
+            if(user[0] == "@" || user[0] == "+"){
+                name = user.substring(1);
+            }
+            delete this.users[name];
         }
+        this._updateUserArr();
     }
     
     ClearUsers(){
-        this.users = [];
+        this.users = {};
+        this._usersArr = [];
+    }
+    
+    _updateUserArr(){
+        this._usersArr = []
+        for(var key in this.users){
+            this._usersArr.push(this.users[key]);
+        }
     }
 }
 
@@ -145,11 +169,12 @@ function parseMessage(message){
 		s = s.substring(end+1, s.length);
 	}
 
-
+    
 	//Parse the command
 	var end = s.indexOf(' ');
+    if(end < 0) //No arg commands will have no space
+        end = s.length;
 	retval.command = s.substring(0, end).toUpperCase();
-
 
 	//Parse the parameters by white space, everything after the ':' treated as one argument
 	s = s.substring(end+1, s.length);
@@ -170,7 +195,6 @@ function parseMessage(message){
 				break;
 			s = s.substring(end+1, s.length);
 		}
-
 	}
 
 	return retval;
