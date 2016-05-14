@@ -13,7 +13,9 @@ class IRCStore {
 	constructor(){
 		this.websocket = undefined;
 		this.roomsMgr = new RoomsManager();
-		this._callbacks = []
+		this.prevActiveRoom = SERVER_CH;
+		this.activeRoom = SERVER_CH;
+		this._callbacks = [];
 	}
 	
 	//Registers a change listener. 
@@ -36,11 +38,26 @@ class IRCStore {
 		};
 	}
 
+	//Returns the Room object that is active
+	ActiveRoom(){
+		if(this.roomsMgr.RoomExists(this.activeRoom)){
+			return this.roomsMgr.Room(this.activeRoom);
+		}
+		return this.roomsMgr.Room(SERVER_CH);
+	}
+	
+	//Sets the activeRoom name
+	SetActiveRoom(rmName){
+		this.prevActiveRoom = this.activeRoom;
+		this.activeRoom = rmName;
+		this._updateCallbacks()
+	}
+
 	SendMessage(msg){
 		//TODO: Parse message depending on context
 		this.websocket.send(msg.trim()+"\r\n");
 		this.roomsMgr.AddMessage(new IRC.Message(msg.trim()));
-		this._updateCallbacks(this.roomsMgr.Rooms());
+		this._updateCallbacks();
 	}
 
 	Rooms(){
@@ -49,6 +66,13 @@ class IRCStore {
 	
 	Room(rmName){
 		return this.roomsMgr.Room(rmName);
+	}
+
+	CloseRoom(rmName){
+		this.roomsMgr.RemoveRoom(rmName);
+		this.activeRoom = this.prevActiveRoom;
+		this.SendMessage("PART "+rmName);
+		//this._updateCallbacks();
 	}
 
 	_recieveMessage(e){
@@ -62,9 +86,9 @@ class IRCStore {
 		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
-	_updateCallbacks(rooms){
+	_updateCallbacks(){
 		for(var k=0; k < this._callbacks.length; k++){
-			this._callbacks[k](rooms);
+			this._callbacks[k]();
 		}
 	}
 }
@@ -127,7 +151,7 @@ class RoomsManager {
 				
 			if(message.Nick() === null){
 				//User parting channel
-				this._removeRoom(room);
+				this.RemoveRoom(room);
 			} else if(this.RoomExists(room)){
 				this.Room(room).RemoveUser(user);
 			}
@@ -207,8 +231,8 @@ class RoomsManager {
 		this.rooms[name] = new IRC.Room(name);
 	}
 	
-	_removeRoom(name){
-		this.rooms[name] = undefined;
+	RemoveRoom(name){
+		delete this.rooms[name];
 	}
 	
 	_addUser(roomName, ...user){

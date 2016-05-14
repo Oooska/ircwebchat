@@ -25,7 +25,7 @@ var MessageList = React.createClass({
 	render: function () {
 		var rows = [];
 		for (var k = 0; k < this.props.messages.length; k++) {
-			rows.push(React.createElement("span", { key: k }, this.props.messages[k].Nick() === null ? "You" : this.props.messages[k].Nick(), this.props.messages[k].DisplayText()));
+			rows.push(React.createElement("span", { key: k }, this.props.messages[k].Nick() === null ? "You: " : this.props.messages[k].Nick(), this.props.messages[k].DisplayText()));
 		}
 		return React.createElement("div", { className: "messagelist col-xs-10" }, rows);
 	}
@@ -84,7 +84,9 @@ var TabbedRooms = React.createClass({
 	propTypes: {
 		rooms: React.PropTypes.arrayOf(React.PropTypes.instanceOf(IRC.Room)),
 		activeRoom: React.PropTypes.instanceOf(IRC.Room),
-		onChange: React.PropTypes.func.isRequired
+		onChange: React.PropTypes.func.isRequired,
+		onClose: React.PropTypes.func.isRequired,
+		defaultName: React.PropTypes.string.isRequired
 	},
 
 	render: function () {
@@ -92,10 +94,12 @@ var TabbedRooms = React.createClass({
 		var activeRoom = this.props.activeRoom;
 		var rooms = this.props.rooms;
 		var onChange = this.props.onChange;
+		var onClose = this.props.onClose;
+		var defaultName = this.props.defaultName;
 		return React.createElement('div', null, React.createElement('ul', { className: 'tabs' }, rooms.map(function (room) {
 			return React.createElement('li', { className: activeRoom.Name() === room.Name() ? "active" : "",
 				onClick: onChange.bind(null, room.Name()),
-				key: room.Name() }, room.Name());
+				key: room.Name() }, room.Name(), room.Name() !== defaultName ? React.createElement('span', { onClick: onClose.bind(null, room.Name()) }, '[X]') : null);
 		})), React.createElement(Room, { name: activeRoom.Name(), users: activeRoom.Users(), messages: activeRoom.Messages() }));
 	}
 });
@@ -147,13 +151,14 @@ var IRCWebChat = React.createClass({
 
 	//Start the connection when the client mounts.
 	componentWillMount: function () {
-		IRCStore.AddChangeListener(this.addMessage);
+		IRCStore.AddChangeListener(this._updateIRCState);
 		IRCStore.Start(window.location.host + "/chat/socket");
 	},
 
-	//addMessage is called by the store when there's updated state to pass down.
-	addMessage: function (newRooms) {
-		this.setState({ rooms: newRooms });
+	_updateIRCState: function () {
+		var rooms = IRCStore.Rooms();
+		var activeRoom = IRCStore.ActiveRoom();
+		this.setState({ rooms: rooms, activeRoom: activeRoom });
 	},
 
 	//sendMessage is called when the user hits enter or click send.
@@ -162,7 +167,7 @@ var IRCWebChat = React.createClass({
 		event.preventDefault();
 
 		var val = this.state.input.value;
-		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.state.activeRoom !== undefined && this.state.activeRoom.Name() != "Server Messages") {
+		if (val.length > 0 && val[0] == '/') val = val.substring(1, val.length);else if (this.state.activeRoom !== undefined && this.state.activeRoom.Name() != IRCStore.DefaultChannel) {
 			val = "PRIVMSG " + this.state.activeRoom.Name() + " :" + val;
 		}
 
@@ -172,7 +177,13 @@ var IRCWebChat = React.createClass({
 
 	//Listens for the user switching tabs
 	_tabChanged: function (newValue) {
-		this.setState({ activeRoom: IRCStore.Room(newValue) });
+		IRCStore.SetActiveRoom(newValue);
+	},
+
+	//Kustebs for the close tab button being hit
+	_closeTab: function (roomName) {
+		if (roomName === IRCStore.DefaultChannel) return;
+		IRCStore.CloseRoom(roomName);
 	},
 
 	//Listens for changes to the Input box
@@ -181,7 +192,7 @@ var IRCWebChat = React.createClass({
 	},
 
 	render: function () {
-		return React.createElement('div', { className: 'container-fluid' }, React.createElement(TabbedRooms, { rooms: this.state.rooms, activeRoom: this.state.activeRoom, onChange: this._tabChanged }), React.createElement(Input, { value: this.state.input.value, onChange: this._inputChange, onSend: this.sendMessage }));
+		return React.createElement('div', { className: 'container-fluid' }, React.createElement(TabbedRooms, { rooms: this.state.rooms, activeRoom: this.state.activeRoom, onChange: this._tabChanged, onClose: this._closeTab, defaultName: IRCStore.DefaultChannel }), React.createElement(Input, { value: this.state.input.value, onChange: this._inputChange, onSend: this.sendMessage }));
 	}
 });
 
@@ -423,6 +434,8 @@ class IRCStore {
 	constructor() {
 		this.websocket = undefined;
 		this.roomsMgr = new RoomsManager();
+		this.prevActiveRoom = SERVER_CH;
+		this.activeRoom = SERVER_CH;
 		this._callbacks = [];
 	}
 
@@ -446,11 +459,26 @@ class IRCStore {
 		};
 	}
 
+	//Returns the Room object that is active
+	ActiveRoom() {
+		if (this.roomsMgr.RoomExists(this.activeRoom)) {
+			return this.roomsMgr.Room(this.activeRoom);
+		}
+		return this.roomsMgr.Room(SERVER_CH);
+	}
+
+	//Sets the activeRoom name
+	SetActiveRoom(rmName) {
+		this.prevActiveRoom = this.activeRoom;
+		this.activeRoom = rmName;
+		this._updateCallbacks();
+	}
+
 	SendMessage(msg) {
 		//TODO: Parse message depending on context
 		this.websocket.send(msg.trim() + "\r\n");
 		this.roomsMgr.AddMessage(new IRC.Message(msg.trim()));
-		this._updateCallbacks(this.roomsMgr.Rooms());
+		this._updateCallbacks();
 	}
 
 	Rooms() {
@@ -459,6 +487,13 @@ class IRCStore {
 
 	Room(rmName) {
 		return this.roomsMgr.Room(rmName);
+	}
+
+	CloseRoom(rmName) {
+		this.roomsMgr.RemoveRoom(rmName);
+		this.activeRoom = this.prevActiveRoom;
+		this.SendMessage("PART " + rmName);
+		//this._updateCallbacks();
 	}
 
 	_recieveMessage(e) {
@@ -472,9 +507,9 @@ class IRCStore {
 		this._updateCallbacks(this.roomsMgr.Rooms());
 	}
 
-	_updateCallbacks(rooms) {
+	_updateCallbacks() {
 		for (var k = 0; k < this._callbacks.length; k++) {
-			this._callbacks[k](rooms);
+			this._callbacks[k]();
 		}
 	}
 }
@@ -534,7 +569,7 @@ class RoomsManager {
 
 			if (message.Nick() === null) {
 				//User parting channel
-				this._removeRoom(room);
+				this.RemoveRoom(room);
 			} else if (this.RoomExists(room)) {
 				this.Room(room).RemoveUser(user);
 			}
@@ -612,8 +647,8 @@ class RoomsManager {
 		this.rooms[name] = new IRC.Room(name);
 	}
 
-	_removeRoom(name) {
-		this.rooms[name] = undefined;
+	RemoveRoom(name) {
+		delete this.rooms[name];
 	}
 
 	_addUser(roomName, ...user) {

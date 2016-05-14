@@ -18,13 +18,14 @@ var IRCWebChat = React.createClass({
 
 	//Start the connection when the client mounts.
 	componentWillMount: function(){
-		IRCStore.AddChangeListener(this.addMessage);
+		IRCStore.AddChangeListener(this._updateIRCState);
 		IRCStore.Start(window.location.host+"/chat/socket");
 	},
 
-	//addMessage is called by the store when there's updated state to pass down.
-	addMessage: function(newRooms){
-		this.setState({rooms:  newRooms});
+	_updateIRCState: function(){
+		var rooms = IRCStore.Rooms();
+		var activeRoom = IRCStore.ActiveRoom();
+		this.setState({rooms: rooms, activeRoom: activeRoom});
 	},
 
 	//sendMessage is called when the user hits enter or click send.
@@ -35,7 +36,7 @@ var IRCWebChat = React.createClass({
 		var val = this.state.input.value;
 		if(val.length > 0 && val[0] == '/')
 			val = val.substring(1, val.length);
-		else if(this.state.activeRoom !== undefined && this.state.activeRoom.Name() != "Server Messages"){
+		else if(this.state.activeRoom !== undefined && this.state.activeRoom.Name() != IRCStore.DefaultChannel){
 			val = "PRIVMSG "+this.state.activeRoom.Name()+" :" + val;
 		}
 		
@@ -45,7 +46,14 @@ var IRCWebChat = React.createClass({
 
 	//Listens for the user switching tabs
 	_tabChanged: function(newValue){
-		this.setState({activeRoom: IRCStore.Room(newValue)});
+		IRCStore.SetActiveRoom(newValue);
+	},
+
+	//Kustebs for the close tab button being hit
+	_closeTab: function(roomName){
+		if(roomName === IRCStore.DefaultChannel)
+			return;
+		IRCStore.CloseRoom(roomName);
 	},
 
 	//Listens for changes to the Input box
@@ -56,7 +64,7 @@ var IRCWebChat = React.createClass({
 	render: function(){
 		return (
 			<div className="container-fluid">
-				<TabbedRooms rooms={this.state.rooms} activeRoom={this.state.activeRoom} onChange={this._tabChanged} />
+				<TabbedRooms rooms={this.state.rooms} activeRoom={this.state.activeRoom} onChange={this._tabChanged} onClose={this._closeTab} defaultName={IRCStore.DefaultChannel} />
 				<Input value={this.state.input.value} onChange={this._inputChange} onSend={this.sendMessage} />
 			</div>
 		)
